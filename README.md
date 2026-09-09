@@ -2,8 +2,9 @@
 
 Mascota estática de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
-encima de otras ventanas. Arrastra el personaje para moverlo; haz clic derecho
-sobre él y selecciona **Cerrar mascota** para salir.
+encima de otras ventanas. Arrastra el personaje para moverlo; la posición se
+recuerda para el siguiente inicio. El menú de clic derecho permite volver a la
+esquina, cambiar de modo y cerrar la mascota.
 
 ## Inicio rápido (sin gastar tokens)
 
@@ -22,15 +23,23 @@ sin clave y sin consumo de tokens. No es una respuesta de IA.
 
 ## Activar OpenAI de forma explícita
 
-Configura `OPENAI_API_KEY` en las variables de entorno de Windows con tu propia
-clave y abre una terminal nueva para que la herede. No la pegues en el código,
-en el chat ni en Git. La aplicación no lee archivos `.env` automáticamente.
+La aplicación busca `OPENAI_API_KEY` primero en las variables de entorno de
+Windows y después en `.env.local`. Este archivo está ignorado por Git. No pegues
+la clave en el código, en el chat ni en un archivo que Git pueda rastrear.
+
+Si la clave está copiada en el portapapeles de Windows, puedes guardarla sin
+mostrarla en la consola con:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/save_clipboard_key.py
+```
 
 ```powershell
 .\.venv\Scripts\python.exe main.py --live
 ```
 
-El indicador inferior mostrará **OPENAI · consume tokens**. La aplicación solo
+También puedes cambiar entre ambos modos desde el menú de clic derecho. El
+indicador inferior mostrará **OPENAI · consume tokens**. La aplicación solo
 envía una solicitud al pulsar Enter con texto. El modelo predeterminado es
 `gpt-4.1-mini`; se puede cambiar con `OPENAI_MODEL`. El acceso al modelo y la
 facturación dependen de tu cuenta de la API.

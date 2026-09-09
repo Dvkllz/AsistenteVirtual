@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
+from PyQt6.QtCore import QEvent, QPointF, QSettings, Qt, QTimer
 from PyQt6.QtGui import QImage, QMouseEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
@@ -26,6 +26,9 @@ class WindowTests(unittest.TestCase):
         self.guard = patch('socket.socket.connect', side_effect=AssertionError('Network forbidden in tests'))
         self.guard.start()
         self.windows = []
+        self.settings = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope,
+                                  "AsistenteVirtualTests", self.id())
+        self.settings.clear()
 
     def tearDown(self):
         for window in self.windows:
@@ -36,6 +39,7 @@ class WindowTests(unittest.TestCase):
         self.guard.stop()
 
     def make_window(self, **kwargs):
+        kwargs.setdefault('settings', self.settings)
         window = PetWindow(**kwargs)
         self.windows.append(window)
         window.show()
@@ -123,6 +127,32 @@ class WindowTests(unittest.TestCase):
             self.app.sendEvent(window.character, event)
         self.assertEqual(window.pos(), start - QPointF(40, 30).toPoint())
         self.assertIsNone(window._drag_offset)
+        self.assertEqual(self.settings.value('window/x', type=int), window.x())
+        self.assertEqual(self.settings.value('window/y', type=int), window.y())
+
+    def test_saved_position_is_restored(self):
+        self.settings.setValue('window/x', 40)
+        self.settings.setValue('window/y', 50)
+        window = self.make_window()
+        self.assertEqual(window.pos(), QPointF(40, 50).toPoint())
+        window.reset_position()
+        self.assertTrue(self.app.primaryScreen().availableGeometry().contains(window.geometry()))
+
+    def test_mode_switch_changes_responder_without_duplicate_request(self):
+        with patch('desktop_pet.window.has_openai_key', return_value=True), \
+                patch('desktop_pet.window.answer_question', return_value='Respuesta OpenAI') as answer:
+            window = self.make_window()
+            window.live_action.trigger()
+            self.assertTrue(window.live)
+            self.assertIn('consume tokens', window.mode.text())
+            window.input.setText('Hola')
+            window.submit()
+            self.assertFalse(window.demo_action.isEnabled())
+            self.wait_until(lambda: window.worker is None)
+            answer.assert_called_once_with('Hola', live=True)
+            self.assertTrue(window.demo_action.isEnabled())
+            window.demo_action.trigger()
+            self.assertFalse(window.live)
 
     def test_context_menu_close_during_request(self):
         gate = threading.Event()
@@ -134,7 +164,7 @@ class WindowTests(unittest.TestCase):
             self.app.processEvents()
             self.assertTrue(window.menu.isVisible())
             window.menu.hide()
-            window.menu.actions()[0].trigger()
+            window.close_action.trigger()
             self.assertTrue(window._closing)
             self.assertFalse(window.isVisible())
         finally:

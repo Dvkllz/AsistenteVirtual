@@ -3,13 +3,13 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QPoint, Qt, QThread, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QAction, QCloseEvent, QPixmap
+from PyQt6.QtCore import QEvent, QPoint, QSettings, Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QLabel, QLineEdit, QMenu, QScrollArea, QVBoxLayout, QWidget,
 )
 
-from desktop_pet.service import MAX_QUESTION_CHARS, PetServiceError, answer_question
+from desktop_pet.service import MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
 
 ASSET_PATH = Path(__file__).resolve().parent.parent / "assets" / "placeholder.png"
 
@@ -34,15 +34,17 @@ class AnswerThread(QThread):
 
 
 class PetWindow(QWidget):
-    def __init__(self, *, live: bool = False, responder: Callable[[str], str] | None = None):
+    def __init__(self, *, live: bool = False, responder: Callable[[str], str] | None = None,
+                 settings: QSettings | None = None):
         super().__init__()
         self.live = live
-        self.responder = responder or (lambda question: answer_question(question, live=live))
+        self._custom_responder = responder
+        self.settings = settings or QSettings()
         self.worker: AnswerThread | None = None
         self._closing = False
         self._drag_offset: QPoint | None = None
 
-        self.setWindowTitle("Mascota virtual · " + ("OpenAI" if live else "Prueba local"))
+        self.setWindowTitle("Mascota virtual")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(320, 440)
@@ -113,23 +115,54 @@ class PetWindow(QWidget):
         self.input.setAccessibleName("Pregunta; Enter para enviar")
         self.input.returnPressed.connect(self.submit)
         layout.addWidget(self.input)
-        self.mode = QLabel("OPENAI · consume tokens" if live else "PRUEBA LOCAL · sin consumo")
+        self.mode = QLabel()
         self.mode.setObjectName("mode")
         layout.addWidget(self.mode, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.menu = QMenu(self)
-        close_action = QAction("Cerrar mascota", self)
-        close_action.triggered.connect(self.close)
-        self.menu.addAction(close_action)
+        self.mode_group = QActionGroup(self)
+        self.mode_group.setExclusive(True)
+        self.demo_action = QAction("Modo de prueba · sin consumo", self, checkable=True)
+        self.live_action = QAction("Usar OpenAI · consume tokens", self, checkable=True)
+        self.mode_group.addAction(self.demo_action)
+        self.mode_group.addAction(self.live_action)
+        self.demo_action.triggered.connect(lambda checked: checked and self.set_mode(False))
+        self.live_action.triggered.connect(lambda checked: checked and self.set_mode(True))
+        self.menu.addActions((self.demo_action, self.live_action))
+        self.menu.addSeparator()
+        self.reset_position_action = QAction("Volver a la esquina", self)
+        self.reset_position_action.triggered.connect(self.reset_position)
+        self.menu.addAction(self.reset_position_action)
+        self.menu.addSeparator()
+        self.close_action = QAction("Cerrar mascota", self)
+        self.close_action.triggered.connect(self.close)
+        self.menu.addAction(self.close_action)
         for surface in (self, self.character, self.bubble, self.mode):
             surface.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             surface.customContextMenuRequested.connect(
                 lambda point, target=surface: self.menu.popup(target.mapToGlobal(point))
             )
 
-        self.show_response("Aquí estoy. Pregunta algo; intentaré disimular mi entusiasmo."
-                           if live else "Modo de prueba local. Escribe algo y pulsa Enter: sarcasmo gratis, por ahora.")
-        self.place_bottom_right()
+        self.set_mode(live, announce=True)
+        if not self.restore_position():
+            self.place_bottom_right()
+
+    def set_mode(self, live: bool, *, announce: bool = True) -> None:
+        if self.worker is not None:
+            return
+        self.live = live
+        self.demo_action.setChecked(not live)
+        self.live_action.setChecked(live)
+        self.setWindowTitle("Mascota virtual · " + ("OpenAI" if live else "Prueba local"))
+        self.mode.setText("OPENAI · consume tokens" if live else "PRUEBA LOCAL · sin consumo")
+        if not announce:
+            return
+        if live and not has_openai_key():
+            self.show_response("OpenAI está seleccionado, pero falta una clave válida. Magnífica conexión imaginaria.")
+        elif live:
+            self.show_response("OpenAI activado. Cada pregunta consume tokens; elige tus batallas.")
+        else:
+            self.show_response("Modo de prueba local. Escribe algo y pulsa Enter: sarcasmo gratis, por ahora.")
 
     def place_bottom_right(self) -> None:
         screen = QApplication.primaryScreen()
@@ -137,6 +170,30 @@ class PetWindow(QWidget):
             area = screen.availableGeometry()
             self.move(max(area.left(), area.right() - self.width() - 19),
                       max(area.top(), area.bottom() - self.height() - 19))
+
+    def restore_position(self) -> bool:
+        if not (self.settings.contains("window/x") and self.settings.contains("window/y")):
+            return False
+        x = self.settings.value("window/x", type=int)
+        y = self.settings.value("window/y", type=int)
+        position = QPoint(x, y)
+        geometry = self.geometry()
+        geometry.moveTopLeft(position)
+        if not any(screen.availableGeometry().intersects(geometry)
+                   for screen in QApplication.screens()):
+            return False
+        self.move(position)
+        return True
+
+    def save_position(self) -> None:
+        self.settings.setValue("window/x", self.x())
+        self.settings.setValue("window/y", self.y())
+        self.settings.sync()
+
+    @pyqtSlot()
+    def reset_position(self) -> None:
+        self.place_bottom_right()
+        self.save_position()
 
     def eventFilter(self, watched, event) -> bool:
         if watched is self.character:
@@ -156,6 +213,7 @@ class PetWindow(QWidget):
             if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
                 self._drag_offset = None
                 self.character.setCursor(Qt.CursorShape.OpenHandCursor)
+                self.save_position()
                 return True
         return super().eventFilter(watched, event)
 
@@ -166,11 +224,14 @@ class PetWindow(QWidget):
             return
         self.input.setEnabled(False)
         self.show_response("Pensando… sí, eso también lleva tiempo.")
-        self.worker = AnswerThread(question, self.responder, self)
+        responder = self._custom_responder or (lambda value: answer_question(value, live=self.live))
+        self.worker = AnswerThread(question, responder, self)
         self.worker.answered.connect(self._on_answer)
         self.worker.failed.connect(self.show_response)
         self.worker.finished.connect(self._on_finished)
         self.worker.start()
+        self.demo_action.setEnabled(False)
+        self.live_action.setEnabled(False)
 
     @pyqtSlot(str)
     def show_response(self, text: str) -> None:
@@ -193,9 +254,12 @@ class PetWindow(QWidget):
             QApplication.instance().quit()
             return
         self.input.setEnabled(True)
+        self.demo_action.setEnabled(True)
+        self.live_action.setEnabled(True)
         self.input.setFocus()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.save_position()
         if self.worker is not None:
             # Hide immediately; keep Qt alive until the HTTP worker finishes safely.
             # Never terminate a running thread or block the GUI with wait().

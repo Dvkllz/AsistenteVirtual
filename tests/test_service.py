@@ -2,6 +2,8 @@ import json
 import os
 import unittest
 from unittest.mock import patch
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import httpx
 import openai
@@ -29,6 +31,19 @@ class ServiceTests(unittest.TestCase):
             with self.assertRaisesRegex(PetServiceError, 'Falta OPENAI_API_KEY'):
                 answer_question('Hola', live=True)
             client.assert_not_called()
+
+    def test_key_can_be_loaded_from_ignored_local_env(self):
+        with TemporaryDirectory() as folder:
+            env_file = Path(folder) / '.env.local'
+            fake_key = 's' + 'k-' + ('x' * 50)
+            env_file.write_text(f'OPENAI_API_KEY={fake_key}', encoding='utf-8')
+            with patch.dict(os.environ, {}, clear=True), \
+                    patch('desktop_pet.service.LOCAL_ENV_PATH', env_file), \
+                    patch('desktop_pet.service.openai.OpenAI') as client:
+                response = client.return_value.__enter__.return_value.responses.create.return_value
+                response.output_text = 'Desde archivo.'
+                response.status = 'completed'
+                self.assertEqual(answer_question('Hola', live=True), 'Desde archivo.')
 
     def test_real_sdk_with_fake_transport_and_spending_limits(self):
         requests = []

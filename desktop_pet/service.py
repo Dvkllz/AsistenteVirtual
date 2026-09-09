@@ -1,6 +1,7 @@
 """Text service independent from Qt; no credentials or network needed for demo."""
 
 import os
+from pathlib import Path
 import time
 
 import openai
@@ -8,6 +9,7 @@ import openai
 MAX_QUESTION_CHARS = 800
 MAX_OUTPUT_TOKENS = 120
 DEFAULT_MODEL = "gpt-4.1-mini"
+LOCAL_ENV_PATH = Path(__file__).resolve().parent.parent / ".env.local"
 SYSTEM_PROMPT = (
     "Eres una pequeña mascota virtual de escritorio. Responde en español salvo que "
     "te pidan otro idioma. Sé útil, directo y ligeramente sarcástico, con humor "
@@ -21,6 +23,29 @@ class PetServiceError(Exception):
     """A safe, user-facing error, never a raw API error or credential."""
 
 
+def _local_env_value(name: str) -> str:
+    try:
+        lines = LOCAL_ENV_PATH.read_text(encoding="utf-8-sig").splitlines()
+    except (FileNotFoundError, OSError):
+        return ""
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == name:
+            return value.strip().strip('"').strip("'")
+    return ""
+
+
+def config_value(name: str) -> str:
+    if name in os.environ:
+        return os.environ[name].strip()
+    return _local_env_value(name)
+
+
+def has_openai_key() -> bool:
+    key = config_value("OPENAI_API_KEY")
+    return key.startswith("sk-") and len(key) >= 40
+
+
 def answer_question(question: str, *, live: bool = False) -> str:
     question = question.strip()
     if not question:
@@ -31,10 +56,10 @@ def answer_question(question: str, *, live: bool = False) -> str:
         time.sleep(0.45)
         return "Respuesta de prueba: estoy listo para ayudarte. Mi talento para fingir que pienso es impecable."
 
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    key = config_value("OPENAI_API_KEY")
     if not key:
         raise PetServiceError("Falta OPENAI_API_KEY. Configúrala y reinicia, o abre el modo de prueba.")
-    model = os.environ.get("OPENAI_MODEL", "").strip() or DEFAULT_MODEL
+    model = config_value("OPENAI_MODEL") or DEFAULT_MODEL
     try:
         # No automatic retries: each submitted question makes at most one attempt.
         with openai.OpenAI(api_key=key, timeout=20.0, max_retries=0) as client:
