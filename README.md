@@ -1,0 +1,81 @@
+# Asistente Virtual · v1.0
+
+Mascota estática de escritorio en Python y PyQt6, inicialmente para Windows.
+Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
+encima de otras ventanas. Arrastra el personaje para moverlo; haz clic derecho
+sobre él y selecciona **Cerrar mascota** para salir.
+
+## Inicio rápido (sin gastar tokens)
+
+Requiere Python 3.11 o posterior. Desde PowerShell en la carpeta del proyecto:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py
+```
+
+Después de instalar, también puedes abrir **Iniciar mascota.bat** con doble clic.
+No abre una consola persistente. Escribe una pregunta y pulsa Enter.
+El modo predeterminado devuelve una respuesta fija de demostración, sin red,
+sin clave y sin consumo de tokens. No es una respuesta de IA.
+
+## Activar OpenAI de forma explícita
+
+Configura `OPENAI_API_KEY` en las variables de entorno de Windows con tu propia
+clave y abre una terminal nueva para que la herede. No la pegues en el código,
+en el chat ni en Git. La aplicación no lee archivos `.env` automáticamente.
+
+```powershell
+.\.venv\Scripts\python.exe main.py --live
+```
+
+El indicador inferior mostrará **OPENAI · consume tokens**. La aplicación solo
+envía una solicitud al pulsar Enter con texto. El modelo predeterminado es
+`gpt-4.1-mini`; se puede cambiar con `OPENAI_MODEL`. El acceso al modelo y la
+facturación dependen de tu cuenta de la API.
+
+- Máximo 800 caracteres por pregunta y 120 tokens de salida por solicitud.
+- Respuestas breves en español con sarcasmo amistoso.
+- Sin historial: cada pregunta es independiente.
+- Sin reintentos automáticos ni llamadas al iniciar.
+- Solicitudes con `store=False`; la aplicación no guarda conversaciones.
+- Tiempo de espera HTTP de 20 segundos y errores legibles sin mostrar secretos.
+
+Las solicitudes corren en `QThread`. Se deshabilita la entrada mientras llega
+la respuesta para evitar envíos duplicados; la mascota sigue siendo arrastrable.
+Si cierras durante una solicitud, la ventana desaparece de inmediato y el proceso
+termina cuando acaba la solicitud o su espera. Cerrar no garantiza cancelar una
+solicitud ya recibida por OpenAI ni su posible coste.
+
+## Imagen y estructura
+
+Reemplaza `assets/placeholder.png` por otro PNG con transparencia y reinicia.
+La imagen se ajusta manteniendo su proporción. El placeholder se generó localmente
+con formas simples; se puede regenerar con:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/create_placeholder.py
+```
+
+- `main.py`: inicio y selección explícita del modo API.
+- `desktop_pet/window.py`: ventana, arrastre, menú y trabajo en segundo plano.
+- `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
+- `tests/`: comprobaciones locales de interfaz e integración simulada.
+
+La lógica está separada de la interfaz para facilitar una futura adaptación a
+otros sistemas. Esta entrega se verifica en Windows; no incluye instalador `.exe`,
+animación, voz, memoria ni inicio automático.
+
+## Verificación sin API
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+Remove-Item Env:QT_QPA_PLATFORM
+```
+
+Las pruebas sustituyen el cliente o el servicio: no hacen solicitudes reales.
+
+Integración basada en la [documentación oficial de generación de texto](https://developers.openai.com/api/docs/guides/text)
+y el [modelo GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini).
