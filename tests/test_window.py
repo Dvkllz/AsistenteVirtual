@@ -31,6 +31,10 @@ class WindowTests(unittest.TestCase):
         self.temp_settings = TemporaryDirectory()
         self.settings = QSettings(str(Path(self.temp_settings.name) / 'settings.ini'), QSettings.Format.IniFormat)
         self.settings.setValue('physics/enabled', False)
+        self.settings.setValue('autonomy/cursor_push', False)
+        self.cursor_guard = patch('desktop_pet.autonomy.QCursor.setPos',
+                                  side_effect=AssertionError('Real cursor writes forbidden in tests'))
+        self.cursor_guard.start()
 
     def tearDown(self):
         for window in self.windows:
@@ -39,6 +43,7 @@ class WindowTests(unittest.TestCase):
             window.deleteLater()
         self.app.processEvents()
         self.guard.stop()
+        self.cursor_guard.stop()
         self.temp_settings.cleanup()
 
     def make_window(self, **kwargs):
@@ -377,10 +382,11 @@ class WindowTests(unittest.TestCase):
         auto = window.autonomy
         auto.timer.stop()
         target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
-        auto.pounce(target)
-        self.wait_until(lambda: auto.swatting)
-        self.assertTrue(auto.effect.isVisible())
-        self.wait_until(lambda: not auto.swatting)
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target):
+            auto.pounce(target)
+            self.wait_until(lambda: auto.swatting)
+            self.assertTrue(auto.effect.isVisible())
+            self.wait_until(lambda: not auto.swatting)
         self.assertFalse(auto.pouncing)
         self.assertFalse(auto.effect.isVisible())
         self.assertTrue(window.motion_timer.isActive())
@@ -399,6 +405,84 @@ class WindowTests(unittest.TestCase):
         self.assertFalse(auto.effect.isVisible())
         self.assertFalse(window.motion_timer.isActive())
         window.menu.hide()
+
+    def test_walk_cycles_frames_and_stops_in_idle(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.move(window.x(), window._bounds()[3])
+        window.set_walking(True)
+        keys = set()
+        for _ in range(5):
+            keys.add(window.character.pixmap().cacheKey())
+            QTest.qWait(130)
+        self.assertGreaterEqual(len(keys), 3)
+        window.set_walking(False)
+        self.wait_until(lambda: window.sprite_state == 'idle')
+        key = window.character.pixmap().cacheKey()
+        QTest.qWait(150)
+        self.assertEqual(window.character.pixmap().cacheKey(), key)
+
+    def test_pounce_has_four_animation_phases(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        auto.pounce(target)
+        for milliseconds, expected in ((0, 1), (250, 2), (500, 3), (750, 0)):
+            auto.animation.setCurrentTime(milliseconds)
+            self.assertEqual(window.sprite_frame, expected)
+        auto.finish_pounce()
+
+    def test_swat_pushes_cursor_once_and_does_not_rearm_itself(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.set_cursor_push_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        auto.next_walk = auto.next_quip = float('inf')
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target), \
+                patch('desktop_pet.autonomy.QCursor.setPos') as move:
+            auto.pounce(target)
+            auto.animation.setCurrentTime(auto.animation.duration())
+            move.assert_called_once()
+            destination = move.call_args.args[0]
+            self.assertEqual(destination, target + QPointF(window.facing * 24, -8).toPoint())
+            self.assertTrue(window.screen().availableGeometry().contains(destination))
+            auto.swat()
+            move.assert_called_once()
+        auto.finish_pounce()
+        self.assertTrue(auto.mouse.fired)
+        self.assertFalse(auto.mouse.poll(time.monotonic() + 50, destination))
+
+    def test_moved_cursor_or_held_button_prevents_contact_push(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.set_cursor_push_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        for held, cursor in ((False, target + QPointF(1, 0).toPoint()), (True, target)):
+            with patch('desktop_pet.autonomy.mouse_button_down', return_value=False):
+                auto.pounce(target)
+            with patch('desktop_pet.autonomy.QCursor.pos', return_value=cursor), \
+                    patch('desktop_pet.autonomy.mouse_button_down', return_value=held):
+                auto.animation.setCurrentTime(auto.animation.duration())
+            self.assertFalse(auto.swatting)
+            self.assertFalse(auto.pouncing)
+
+    def test_cursor_push_switch_is_persistent_and_cancels_active_attempt(self):
+        window = self.make_window()
+        window.set_cursor_push_enabled(True)
+        self.assertTrue(self.settings.value('autonomy/cursor_push', type=bool))
+        self.assertTrue(window.autonomy.cursor_push_enabled)
+        window.set_cursor_push_enabled(False)
+        self.assertFalse(self.settings.value('autonomy/cursor_push', type=bool))
+        self.assertFalse(window.autonomy.cursor_push_enabled)
 
     def test_physics_timer_settles_and_saves_only_at_rest(self):
         window = self.make_window()

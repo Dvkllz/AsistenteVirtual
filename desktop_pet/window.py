@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 
 from desktop_pet.service import MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
 from desktop_pet.physics import Body, DragVelocity
-from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state
+from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state, select_frame
 from desktop_pet.autonomy import CatAutonomy
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
@@ -51,6 +51,9 @@ class PetWindow(QWidget):
         self.walking = False
         self.facing = 1
         self.sprite_state = "idle"
+        self.sprite_frame = 0
+        self._sprite_state_started = time.monotonic()
+        self._jump_started = None
         self._sprite_key = None
         self.sprites = SpriteSet()
         self.talking_timer = QTimer(self)
@@ -165,6 +168,10 @@ class PetWindow(QWidget):
         self.autonomy_action.setChecked(self.settings.value("autonomy/enabled", True, type=bool))
         self.autonomy_action.toggled.connect(self.set_autonomy_enabled)
         self.menu.addAction(self.autonomy_action)
+        self.cursor_push_action = QAction("Empujar cursor al dar zarpazo", self, checkable=True)
+        self.cursor_push_action.setChecked(self.settings.value("autonomy/cursor_push", True, type=bool))
+        self.cursor_push_action.toggled.connect(self.set_cursor_push_enabled)
+        self.menu.addAction(self.cursor_push_action)
         self.reset_position_action = QAction("Volver a la esquina", self)
         self.reset_position_action.triggered.connect(self.reset_position)
         self.menu.addAction(self.reset_position_action)
@@ -201,10 +208,20 @@ class PetWindow(QWidget):
             state = "falling"
         elif self.autonomy and self.autonomy.swatting:
             state = "walking"
+        now = time.monotonic()
+        if state != self.sprite_state:
+            self._sprite_state_started = now
         self.sprite_state = state
-        key = (state, self.facing)
+        progress = self.autonomy.pounce_progress if self.autonomy and self.autonomy.pouncing else None
+        frame = select_frame(state, now - self._sprite_state_started, vy=self.body.vy,
+                             launch_age=None if self._jump_started is None else now - self._jump_started,
+                             pounce=progress)
+        if self._drag_offset is not None or (self.autonomy and self.autonomy.swatting):
+            frame = 0
+        self.sprite_frame = frame
+        key = (state, self.facing, frame)
         if key != self._sprite_key:
-            self.character.setPixmap(self.sprites.pixmap(state, self.facing))
+            self.character.setPixmap(self.sprites.pixmap(state, self.facing, frame))
             self._sprite_key = key
 
     def _cancel_walk(self) -> None:
@@ -237,6 +254,16 @@ class PetWindow(QWidget):
         if self.autonomy:
             self.autonomy.set_enabled(enabled)
 
+    @pyqtSlot(bool)
+    def set_cursor_push_enabled(self, enabled: bool) -> None:
+        self.cursor_push_action.setChecked(enabled)
+        if self.autonomy:
+            self.autonomy.cursor_push_enabled = enabled
+            if not enabled:
+                self.autonomy.finish_pounce()
+        self.settings.setValue("autonomy/cursor_push", enabled)
+        self.settings.sync()
+
     def _end_speaking(self) -> None:
         self.talking_timer.stop()
         self._refresh_sprite()
@@ -250,6 +277,7 @@ class PetWindow(QWidget):
 
     def _stop_motion(self) -> None:
         self.motion_timer.stop()
+        self._jump_started = None
         self.body = Body(float(self.x()), float(self.y()))
         self._refresh_sprite()
 
@@ -286,6 +314,7 @@ class PetWindow(QWidget):
         self._last_tick = now
         self.move(round(self.body.x), round(self.body.y))
         if self.body.sleeping:
+            self._jump_started = None
             self.motion_timer.stop()
             self.save_position()
         self._refresh_sprite()
@@ -318,6 +347,7 @@ class PetWindow(QWidget):
         self.setFocus()
         self._stop_motion()
         self.body.vy = -650.0
+        self._jump_started = time.monotonic()
         self._start_motion()
 
     def _screen_added(self, screen) -> None:

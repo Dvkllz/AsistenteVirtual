@@ -1,4 +1,4 @@
-"""Four cached, direction-aware Siamese cat sprites, with deterministic priority."""
+"""Cached directional frames and deterministic animation selection."""
 
 from pathlib import Path
 
@@ -7,6 +7,29 @@ from PyQt6.QtGui import QPixmap, QTransform
 
 SPRITE_DIR = Path(__file__).resolve().parent.parent / "assets" / "siamese"
 SPRITE_STATES = ("idle", "talking", "falling", "walking")
+FRAME_FILES = {
+    "idle": ("idle.png",),
+    "talking": ("talking.png",),
+    "walking": ("walking.png", "animation/walking_1.png", "animation/walking_2.png",
+                "animation/walking_3.png"),
+    "falling": ("falling.png", "animation/jumping_0.png", "animation/jumping_1.png",
+                "animation/jumping_2.png"),
+}
+
+
+def select_frame(state, elapsed=0.0, *, vy=0.0, launch_age=None, pounce=None):
+    if state == "walking":
+        return int(max(0.0, elapsed) / 0.12) % 4
+    if state == "falling":
+        if pounce is not None:
+            return 1 if pounce < .12 else 2 if pounce < .45 else 3 if pounce < .72 else 0
+        if launch_age is not None and launch_age < .08:
+            return 1
+        if vy < -200:
+            return 2
+        if launch_age is not None and vy < 160:
+            return 3
+    return 0
 
 
 def select_state(*, dragging: bool, airborne: bool, speaking: bool, walking: bool) -> str:
@@ -22,7 +45,8 @@ def select_state(*, dragging: bool, airborne: bool, speaking: bool, walking: boo
 class SpriteSet:
     def __init__(self, directory: Path = SPRITE_DIR):
         self.missing: list[str] = []
-        self.frames: dict[tuple[str, int], QPixmap] = {}
+        self.frames: dict[tuple[str, int, int], QPixmap] = {}
+        self.missing_animation: list[str] = []
         fallback = QPixmap(str(directory / "idle.png"))
         if fallback.isNull():
             fallback = QPixmap(str(SPRITE_DIR.parent / "placeholder.png"))
@@ -31,11 +55,16 @@ class SpriteSet:
             if source.isNull():
                 self.missing.append(state)
                 source = fallback
-            # Scale once at load, not on each physics tick. Keep generated alpha.
-            right = source.scaled(117, 112, Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-            self.frames[state, 1] = right
-            self.frames[state, -1] = right.transformed(QTransform().scale(-1, 1))
+            for index, filename in enumerate(FRAME_FILES[state]):
+                frame = source if index == 0 else QPixmap(str(directory / filename))
+                if frame.isNull():
+                    self.missing_animation.append(filename)
+                    frame = source
+                # Scale once at load, not on each physics tick. Keep alpha.
+                right = frame.scaled(117, 112, Qt.AspectRatioMode.KeepAspectRatio,
+                                     Qt.TransformationMode.SmoothTransformation)
+                self.frames[state, 1, index] = right
+                self.frames[state, -1, index] = right.transformed(QTransform().scale(-1, 1))
 
-    def pixmap(self, state: str, direction: int = 1) -> QPixmap:
-        return self.frames[state, -1 if direction < 0 else 1]
+    def pixmap(self, state: str, direction: int = 1, frame: int = 0) -> QPixmap:
+        return self.frames[state, -1 if direction < 0 else 1, frame % len(FRAME_FILES[state])]

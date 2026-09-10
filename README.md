@@ -46,7 +46,12 @@ Se activan por defecto y puedes pausarlas con clic derecho →
   y cancela el intento si ya había empezado. La posición se consulta cada 250 ms.
 - El cursor debe estar fuera de la interfaz de la mascota y en su mismo monitor.
   El gato respeta el área útil, por lo que en los extremos solo puede acercarse.
-  No mueve, bloquea ni pulsa el ratón real; el destello deja pasar los clics.
+  El zarpazo ahora empuja el cursor real una sola vez: 24 píxeles hacia el lado
+  del golpe y 8 hacia arriba, sin salir del área útil. No hace clics ni lo bloquea.
+  Cancela si mueves el cursor o mantienes pulsado un botón, también fuera de la app.
+  Clic derecho → **Empujar cursor al dar zarpazo** permite desactivar solo ese
+  empujón y conservar el efecto visual; la preferencia se recuerda.
+  Su propio empujón no inicia otra persecución.
 
 Se pausan al escribir, seleccionar una respuesta, abrir el menú, arrastrar el
 gato o esperar una respuesta. Desactivar la física también desactiva los paseos
@@ -113,6 +118,12 @@ Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
 Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
 El estado de hablar dura unos segundos; no hay audio ni llamadas adicionales.
 
+Caminar usa cuatro fotogramas en bucle (120 ms cada uno). Saltar muestra cuatro
+poses según el impulso, ascenso, punto alto y descenso, también al perseguir el
+cursor. Se reutilizan los temporizadores de movimiento: no sigue animando en
+reposo ni carga imágenes en cada paso. El gato conserva su tamaño reducido.
+Consulta [los fotogramas y prompts](assets/siamese/animation/ANIMATION.md).
+
 Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su procedencia.
 `assets/placeholder.png` se conserva únicamente como respaldo si faltan imágenes.
 
@@ -126,7 +137,7 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 
 La lógica está separada de la interfaz para facilitar una futura adaptación a
 otros sistemas. Esta entrega se verifica en Windows; no incluye instalador `.exe`,
-ciclos de animación cuadro a cuadro, voz, memoria ni inicio automático.
+voz, memoria ni inicio automático.
 
 ## Verificación sin API
 

@@ -1,7 +1,8 @@
-"""Local cat habits. No network, input injection, or OS mouse hooks."""
+"""Local habits with an optional, user-requested cursor nudge; never clicks."""
 
 import math
 import random
+import sys
 import time
 
 from PyQt6.QtCore import QPoint, QTimer, Qt, QVariantAnimation
@@ -19,6 +20,17 @@ QUIPS = (
     "Hoy tampoco voy a pagar alquiler.",
     "Estoy supervisando. Se parece mucho a no hacer nada.",
 )
+
+
+def mouse_button_down():
+    if QApplication.mouseButtons() != Qt.MouseButton.NoButton:
+        return True
+    if sys.platform == "win32":
+        # Qt may not have seen a button pressed in another application.
+        import ctypes
+        return any(ctypes.windll.user32.GetAsyncKeyState(key) & 0x8000
+                   for key in (0x01, 0x02, 0x04, 0x05, 0x06))
+    return False
 
 
 class IdleMouse:
@@ -68,6 +80,7 @@ class CatAutonomy:
     def __init__(self, window):
         self.window = window
         self.enabled = window.settings.value("autonomy/enabled", True, type=bool)
+        self.cursor_push_enabled = window.settings.value("autonomy/cursor_push", True, type=bool)
         self.rng = random.Random()
         now = time.monotonic()
         self.mouse = IdleMouse(now, QCursor.pos())
@@ -76,6 +89,7 @@ class CatAutonomy:
         self.last_quip = None
         self.auto_walking = False
         self.pouncing = False
+        self.pounce_progress = 0.0
         self.swatting = False
         self.target = QPoint()
         self.effect = SwatEffect(window)
@@ -102,7 +116,7 @@ class CatAutonomy:
         return (w._closing or not w.isVisible() or w._drag_offset is not None
                 or w.menu.isVisible() or w.input.hasFocus() or bool(w.input.text())
                 or w.bubble.hasSelectedText() or w.worker is not None
-                or QApplication.mouseButtons() != Qt.MouseButton.NoButton)
+                or mouse_button_down())
 
     def set_enabled(self, enabled):
         self.enabled = enabled
@@ -177,6 +191,7 @@ class CatAutonomy:
         self.bounds = w._bounds()
         self.destination = self.clamp(self.destination)
         self.pouncing = True
+        self.pounce_progress = 0.0
         w._refresh_sprite()
         self.animation.start()
 
@@ -189,20 +204,36 @@ class CatAutonomy:
             return
         # Smooth travel plus a small arc; never grabs focus or moves the pointer.
         t = float(progress)
+        self.pounce_progress = t
         ease = 1 - (1 - t) ** 3
         delta = self.destination - self.start
         point = self.start + QPoint(round(delta.x() * ease),
                                     round(delta.y() * ease - math.sin(math.pi * t) * 50))
         self.window.move(self.clamp(point))
+        self.window._refresh_sprite()
 
     def swat(self):
         if not self.pouncing:
+            return
+        # Recheck at the instant of contact, not just the slower idle poll.
+        if (self.busy() or not self.enabled or not self.window.physics_enabled
+                or QCursor.pos() != self.target):
+            self.finish_pounce()
             return
         self.pouncing = False
         self.swatting = True
         self.effect.move(self.target - QPoint(28, 28))
         self.effect.show()
         self.window._refresh_sprite()
+        if self.cursor_push_enabled:
+            area = self.window.screen().availableGeometry()
+            pushed = self.target + QPoint(self.window.facing * 24, -8)
+            pushed.setX(max(area.left(), min(area.right(), pushed.x())))
+            pushed.setY(max(area.top(), min(area.bottom(), pushed.y())))
+            QCursor.setPos(pushed)
+            # Our own single nudge must not rearm another attack in ten seconds.
+            self.mouse.position = QPoint(pushed)
+            self.mouse.fired = True
         self.swat_timer.start(350)
 
     def finish_pounce(self, resume=True):

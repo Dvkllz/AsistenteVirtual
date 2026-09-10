@@ -13,15 +13,16 @@ del fondo cuadriculado mediante procesamiento local, autorizada por el usuario.
 
 Los cuatro PNG son RGBA de 512 × 512, con transparencia real. Se cargan y escalan
 una sola vez, a un máximo de 117 × 112 píxeles lógicos (20 % menos de altura).
-Las poses son imágenes
-estáticas por estado, no ciclos de animación cuadro a cuadro.
+Reposo y diálogo usan una imagen; caminar y saltar usan cuatro fotogramas cada
+uno. Véase [animaciones y prompts](animation/ANIMATION.md).
 
 Prioridad: arrastre/caída, respuesta, paseo, reposo. Hablar dura entre 1,8 y 6,5
 segundos según el texto. Pasear se activa mediante clic derecho → Pasear;
 se cancela al escribir, arrastrar, saltar, desactivar la física o volver a la esquina.
 También puede activarse ocasionalmente mediante las travesuras automáticas.
-El juego con el cursor reutiliza caída durante el salto y caminar para mostrar
-la pata adelantada, con un destello breve que no captura clics.
+El juego con el cursor recorre las fases de salto y muestra la pata adelantada
+al golpear, con un destello breve que no captura clics. Puede empujar el cursor
+una sola vez; esta interacción tiene un interruptor propio en el menú.
 
 La referencia elegida se conserva en `concepts/siamese-balanced.png`; su fondo
 original no es transparente y no se carga en la aplicación. Las versiones

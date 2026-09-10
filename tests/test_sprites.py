@@ -9,7 +9,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
 
-from desktop_pet.sprites import SPRITE_DIR, SPRITE_STATES, SpriteSet, select_state
+from desktop_pet.sprites import SPRITE_DIR, SPRITE_STATES, SpriteSet, select_state, select_frame, FRAME_FILES
 
 
 class SpriteTests(unittest.TestCase):
@@ -64,3 +64,28 @@ class SpriteTests(unittest.TestCase):
         self.assertEqual(select_state(**flags), 'falling')
         flags.update(airborne=False, dragging=True)
         self.assertEqual(select_state(**flags), 'falling')
+
+    def test_animation_frames_are_distinct_transparent_and_cached(self):
+        sprites = SpriteSet()
+        self.assertEqual(sprites.missing_animation, [])
+        for state in ('walking', 'falling'):
+            hashes = set()
+            for index, filename in enumerate(FRAME_FILES[state]):
+                path = SPRITE_DIR / filename
+                hashes.add(hashlib.sha256(path.read_bytes()).hexdigest())
+                image = QImage(str(path))
+                self.assertEqual((image.width(), image.height()), (512, 512))
+                self.assertTrue(image.hasAlphaChannel())
+                self.assertEqual(image.pixelColor(0, 0).alpha(), 0)
+                frame = sprites.pixmap(state, 1, index)
+                self.assertEqual(frame.cacheKey(), sprites.pixmap(state, 1, index).cacheKey())
+                self.assertNotEqual(frame.cacheKey(), sprites.pixmap(state, -1, index).cacheKey())
+            self.assertEqual(len(hashes), 4)
+
+    def test_walk_and_jump_frame_selection(self):
+        self.assertEqual([select_frame('walking', i * .121) for i in range(5)], [0, 1, 2, 3, 0])
+        self.assertEqual(select_frame('falling', vy=-650, launch_age=.01), 1)
+        self.assertEqual(select_frame('falling', vy=-450, launch_age=.15), 2)
+        self.assertEqual(select_frame('falling', vy=0, launch_age=.4), 3)
+        self.assertEqual(select_frame('falling', vy=300, launch_age=.6), 0)
+        self.assertEqual(select_frame('idle', 100), 0)

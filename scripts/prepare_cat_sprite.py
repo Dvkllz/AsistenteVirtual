@@ -17,8 +17,9 @@ def prepare(source: Path, target: Path) -> None:
     rgb = np.asarray(original.convert("RGB")).astype(np.int16)
     red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     # The backdrop is neutral and light. Fur is warm; eyes are blue; points dark.
+    chroma = rgb.max(axis=2) - rgb.min(axis=2)
     foreground = ((red - blue > 16) | (blue - red > 22)
-                  | (np.minimum(np.minimum(red, green), blue) < 135))
+                  | ((rgb.min(axis=2) < 135) & (chroma > 10)))
     mask = Image.fromarray((foreground * 255).astype(np.uint8))
     mask = mask.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
     # Fill light highlights enclosed by the silhouette, never the outer backdrop.
@@ -27,6 +28,9 @@ def prepare(source: Path, target: Path) -> None:
     filled = np.where(np.asarray(outside) == 128, 0, 255).astype(np.uint8)
     mask = Image.fromarray(filled).filter(ImageFilter.MinFilter(3))
     mask = mask.filter(ImageFilter.GaussianBlur(0.6))
+    # Preserve genuine source transparency when it already exists.
+    if original.getchannel("A").getextrema()[0] == 0:
+        mask = original.getchannel("A")
     original.putalpha(mask)
     bbox = mask.getbbox()
     if bbox is None:
