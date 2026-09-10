@@ -1,19 +1,19 @@
 """Transparent, draggable desktop pet. Network work stays off the GUI thread."""
 
 from collections.abc import Callable
-from pathlib import Path
 import time
 
 from PyQt6.QtCore import QEvent, QPoint, QSettings, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent, QPixmap
+from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent
 from PyQt6.QtWidgets import (
     QApplication, QLabel, QLineEdit, QMenu, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from desktop_pet.service import MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
 from desktop_pet.physics import Body, DragVelocity
+from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state
 
-ASSET_PATH = Path(__file__).resolve().parent.parent / "assets" / "placeholder.png"
+ASSET_PATH = SPRITE_DIR / "idle.png"
 
 
 class AnswerThread(QThread):
@@ -45,6 +45,14 @@ class PetWindow(QWidget):
         self.worker: AnswerThread | None = None
         self._closing = False
         self._drag_offset: QPoint | None = None
+        self.walking = False
+        self.facing = 1
+        self.sprite_state = "idle"
+        self._sprite_key = None
+        self.sprites = SpriteSet()
+        self.talking_timer = QTimer(self)
+        self.talking_timer.setSingleShot(True)
+        self.talking_timer.timeout.connect(self._refresh_sprite)
         self.body = Body()
         self.drag_velocity = DragVelocity()
         self.physics_enabled = self.settings.value("physics/enabled", True, type=bool)
@@ -110,13 +118,7 @@ class PetWindow(QWidget):
         self.character.setAccessibleName("Mascota; arrastra para mover y clic derecho para cerrar")
         self.character.setToolTip("Arrastra y suelta para lanzarme · Clic derecho para opciones")
         self.character.setCursor(Qt.CursorShape.OpenHandCursor)
-        pixmap = QPixmap(str(ASSET_PATH))
-        if pixmap.isNull():
-            self.character.setText("No se encontró assets/placeholder.png")
-            self.character.setStyleSheet("color: white; background: #202536; border-radius: 16px;")
-        else:
-            self.character.setPixmap(pixmap.scaled(146, 140, Qt.AspectRatioMode.KeepAspectRatio,
-                                                   Qt.TransformationMode.SmoothTransformation))
+        self.character.setPixmap(self.sprites.pixmap("idle"))
         self.character.installEventFilter(self)
         layout.addWidget(self.character)
 
@@ -132,7 +134,7 @@ class PetWindow(QWidget):
         layout.addWidget(self.mode, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.menu = QMenu(self)
-        self.menu.aboutToShow.connect(self.motion_timer.stop)
+        self.menu.aboutToShow.connect(self._pause_motion)
         self.menu.aboutToHide.connect(lambda: QTimer.singleShot(0, self._start_motion))
         self.mode_group = QActionGroup(self)
         self.mode_group.setExclusive(True)
@@ -152,6 +154,10 @@ class PetWindow(QWidget):
         self.jump_action.setEnabled(self.physics_enabled)
         self.jump_action.triggered.connect(self.jump)
         self.menu.addAction(self.jump_action)
+        self.walk_action = QAction("Pasear", self, checkable=True)
+        self.walk_action.setEnabled(self.physics_enabled)
+        self.walk_action.toggled.connect(self.set_walking)
+        self.menu.addAction(self.walk_action)
         self.reset_position_action = QAction("Volver a la esquina", self)
         self.reset_position_action.triggered.connect(self.reset_position)
         self.menu.addAction(self.reset_position_action)
@@ -176,6 +182,42 @@ class PetWindow(QWidget):
         QApplication.instance().screenAdded.connect(self._screen_added)
         QTimer.singleShot(0, self._start_motion)
 
+    def _refresh_sprite(self) -> None:
+        if not hasattr(self, "character"):
+            return
+        moving = self.motion_timer.isActive()
+        airborne = moving and (self.y() < self._bounds()[3] - 1 or abs(self.body.vy) > 100)
+        state = select_state(dragging=self._drag_offset is not None, airborne=airborne,
+                             speaking=self.talking_timer.isActive(), walking=self.walking and moving)
+        self.sprite_state = state
+        key = (state, self.facing)
+        if key != self._sprite_key:
+            self.character.setPixmap(self.sprites.pixmap(state, self.facing))
+            self._sprite_key = key
+
+    def _cancel_walk(self) -> None:
+        self.walking = False
+        if hasattr(self, "walk_action"):
+            self.walk_action.setChecked(False)
+
+    @pyqtSlot(bool)
+    def set_walking(self, enabled: bool) -> None:
+        if enabled == self.walking:
+            return
+        if enabled and (not self.physics_enabled or self._closing or self._drag_offset is not None):
+            self.walk_action.setChecked(False)
+            return
+        self.walking = enabled
+        self.walk_action.setChecked(enabled)
+        self._stop_motion()
+        if enabled:
+            self.setFocus()
+        self._start_motion()
+
+    def _end_speaking(self) -> None:
+        self.talking_timer.stop()
+        self._refresh_sprite()
+
     def _bounds(self) -> tuple[int, int, int, int]:
         if self._physics_screen not in QApplication.screens():
             self._physics_screen = QApplication.primaryScreen()
@@ -186,6 +228,11 @@ class PetWindow(QWidget):
     def _stop_motion(self) -> None:
         self.motion_timer.stop()
         self.body = Body(float(self.x()), float(self.y()))
+        self._refresh_sprite()
+
+    def _pause_motion(self) -> None:
+        self.motion_timer.stop()
+        self._refresh_sprite()
 
     def _start_motion(self) -> None:
         if (not self.physics_enabled or self._closing or not self.isVisible()
@@ -196,22 +243,35 @@ class PetWindow(QWidget):
         self._physics_screen = QApplication.screenAt(self.geometry().center()) or self.screen()
         self._last_tick = time.monotonic()
         self.motion_timer.start()
+        self._refresh_sprite()
 
     @pyqtSlot()
     def _tick_motion(self) -> None:
         now = time.monotonic()
-        self.body.step(now - self._last_tick, self._bounds())
+        bounds = self._bounds()
+        if self.walking and bounds[0] == bounds[2]:
+            self._cancel_walk()
+        if self.walking and self.body.y >= bounds[3] - 1 and self.body.vy >= 0:
+            self.body.vx = self.facing * 72.0
+        self.body.step(now - self._last_tick, bounds)
+        if self.walking and self.body.vx:
+            # A substep can bounce and move back inside the edge in one tick.
+            self.facing = 1 if self.body.vx > 0 else -1
         self._last_tick = now
         self.move(round(self.body.x), round(self.body.y))
         if self.body.sleeping:
             self.motion_timer.stop()
             self.save_position()
+        self._refresh_sprite()
 
     @pyqtSlot(bool)
     def set_physics_enabled(self, enabled: bool) -> None:
         self.physics_enabled = enabled
         self.physics_action.setChecked(enabled)
         self.jump_action.setEnabled(enabled)
+        self.walk_action.setEnabled(enabled)
+        if not enabled:
+            self._cancel_walk()
         self.settings.setValue("physics/enabled", enabled)
         self.settings.sync()
         self._stop_motion()
@@ -224,6 +284,7 @@ class PetWindow(QWidget):
     def jump(self) -> None:
         if not self.physics_enabled or self._closing or self._drag_offset is not None:
             return
+        self._cancel_walk()
         self.setFocus()
         self._stop_motion()
         self.body.vy = -650.0
@@ -243,6 +304,7 @@ class PetWindow(QWidget):
     def set_mode(self, live: bool, *, announce: bool = True) -> None:
         if self.worker is not None:
             return
+        self._end_speaking()
         self.live = live
         self.demo_action.setChecked(not live)
         self.live_action.setChecked(live)
@@ -288,6 +350,7 @@ class PetWindow(QWidget):
 
     @pyqtSlot()
     def reset_position(self) -> None:
+        self._cancel_walk()
         self._stop_motion()
         self.place_bottom_right()
         self.save_position()
@@ -296,16 +359,19 @@ class PetWindow(QWidget):
     def eventFilter(self, watched, event) -> bool:
         if watched is getattr(self, "input", None):
             if event.type() == QEvent.Type.FocusIn:
+                self._cancel_walk()
                 self._stop_motion()
             elif event.type() == QEvent.Type.FocusOut:
                 QTimer.singleShot(0, self._start_motion)
         if watched is self.character:
             if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                self._cancel_walk()
                 self._stop_motion()
                 self.setFocus()
                 self.drag_velocity = DragVelocity()
                 self.drag_velocity.record(time.monotonic(), self.x(), self.y())
                 self._drag_offset = event.globalPosition().toPoint() - self.pos()
+                self._refresh_sprite()
                 self.character.setCursor(Qt.CursorShape.ClosedHandCursor)
                 return True
             if event.type() == QEvent.Type.MouseMove and self._drag_offset is not None:
@@ -324,6 +390,7 @@ class PetWindow(QWidget):
                 self.save_position()
                 self.body.vx, self.body.vy = self.drag_velocity.release(time.monotonic())
                 self._start_motion()
+                self._refresh_sprite()
                 return True
         return super().eventFilter(watched, event)
 
@@ -332,6 +399,8 @@ class PetWindow(QWidget):
         question = self.input.text().strip()
         if not question or self.worker is not None or self._closing:
             return
+        self._cancel_walk()
+        self._end_speaking()
         self.input.setEnabled(False)
         self.show_response("Pensando… sí, eso también lleva tiempo.")
         responder = self._custom_responder or (lambda value: answer_question(value, live=self.live))
@@ -350,8 +419,12 @@ class PetWindow(QWidget):
 
     @pyqtSlot(str)
     def _on_answer(self, text: str) -> None:
+        if self._closing:
+            return
         self.input.clear()
         self.show_response(text)
+        self.talking_timer.start(max(1800, min(6500, len(text) * 45)))
+        self._refresh_sprite()
 
     @pyqtSlot()
     def _on_finished(self) -> None:
@@ -369,6 +442,9 @@ class PetWindow(QWidget):
         self.input.setFocus()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._closing = True
+        self._cancel_walk()
+        self.talking_timer.stop()
         self._stop_motion()
         self.save_position()
         if self.worker is not None:

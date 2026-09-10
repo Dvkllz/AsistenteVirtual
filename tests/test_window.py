@@ -180,6 +180,77 @@ class WindowTests(unittest.TestCase):
         QTest.keyClick(window.input, Qt.Key.Key_Return)
         self.assertIsNone(window.worker)
 
+    def test_answer_uses_talking_pose_then_returns_to_idle(self):
+        window = self.make_window(responder=lambda question: 'Miau. De nada.')
+        self.assertEqual(window.sprite_state, 'idle')
+        window.input.setText('Hola')
+        window.submit()
+        self.wait_until(lambda: window.worker is None)
+        self.assertEqual(window.sprite_state, 'talking')
+        self.assertTrue(window.talking_timer.isActive())
+        window.talking_timer.start(20)
+        self.wait_until(lambda: window.sprite_state == 'idle')
+
+    def test_drag_and_jump_choose_falling_sprite(self):
+        window = self.make_window()
+        QTest.mousePress(window.character, Qt.MouseButton.LeftButton)
+        self.assertEqual(window.sprite_state, 'falling')
+        QTest.mouseRelease(window.character, Qt.MouseButton.LeftButton)
+        self.assertEqual(window.sprite_state, 'idle')
+        window.set_physics_enabled(True)
+        window.jump()
+        self.assertEqual(window.sprite_state, 'falling')
+
+    def test_walk_reverses_at_both_edges_and_stays_in_bounds(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        left, top, right, bottom = window._bounds()
+        for edge, direction in ((right, 1), (left, -1)):
+            window.set_walking(False)
+            window.move(edge, bottom)
+            window.facing = direction
+            window.set_walking(True)
+            self.assertEqual(window.sprite_state, 'walking')
+            window._last_tick = time.monotonic() - 1 / 60
+            window._tick_motion()
+            self.assertEqual(window.facing, -direction)
+            for _ in range(10):
+                window._last_tick = time.monotonic() - 1 / 60
+                window._tick_motion()
+            self.assertTrue(left <= window.x() <= right)
+            self.assertGreater(abs(window.body.x - edge), 5)
+            self.assertTrue(window.motion_timer.isActive())
+        window.set_walking(False)
+        self.assertFalse(window.walking)
+        self.assertFalse(window.walk_action.isChecked())
+
+    def test_walking_is_cancelled_for_typing_and_physics_off(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.move(window.x(), window._bounds()[3])
+        window.set_walking(True)
+        self.assertTrue(window.walking)
+        window.input.setFocus()
+        self.app.processEvents()
+        self.assertFalse(window.walking)
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertEqual(window.sprite_state, 'idle')
+        window.set_walking(True)
+        window.set_physics_enabled(False)
+        self.assertFalse(window.walking)
+        self.assertFalse(window.walk_action.isEnabled())
+        window.set_walking(True)
+        self.assertFalse(window.walking)
+
+    def test_close_does_not_restart_sprite_or_movement_timers(self):
+        window = self.make_window()
+        window._on_answer('Miau')
+        window.close()
+        window._on_answer('Late answer')
+        self.app.processEvents()
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertFalse(window.talking_timer.isActive())
+
     def test_smaller_character_keeps_text_readable(self):
         window = self.make_window()
         self.assertEqual((window.width(), window.height()), (268, 360))

@@ -15,6 +15,8 @@ se ajusta a 146 × 140 manteniendo la proporción. El texto mantiene su tamaño 
 - Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
   elimina el impulso horizontal. Los rebotes pierden fuerza hasta quedar en reposo.
 - Clic derecho → **Dar un salto** para hacerlo saltar.
+- Clic derecho → **Pasear** para caminar por la parte inferior y girar en los
+  bordes. Desmarca la opción para detenerlo. Escribir o arrastrarlo cancela el paseo.
 - Clic derecho → **Física activada** permite desactivar/reactivar el movimiento.
   Esta preferencia se recuerda; el modo OpenAI sigue requiriendo activación explícita.
 - Al escribir o abrir el menú, la mascota se queda quieta. Al salir del campo de
@@ -78,25 +80,28 @@ Si cierras durante una solicitud, la ventana desaparece de inmediato y el proces
 termina cuando acaba la solicitud o su espera. Cerrar no garantiza cancelar una
 solicitud ya recibida por OpenAI ni su posible coste.
 
-## Imagen y estructura
+## Gato siamés y estructura
 
-Reemplaza `assets/placeholder.png` por otro PNG con transparencia y reinicia.
-La imagen se ajusta manteniendo su proporción. El placeholder se generó localmente
-con formas simples; se puede regenerar con:
+La mascota es un siamés realista de complexión intermedia. Sus cuatro poses están
+en `assets/siamese/`: `idle.png` (quieto), `talking.png` (mostrando una respuesta),
+`falling.png` (sujetado o en el aire) y `walking.png` (paseando).
+Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
+Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
+El estado de hablar dura unos segundos; no hay audio ni llamadas adicionales.
 
-```powershell
-.\.venv\Scripts\python.exe scripts/create_placeholder.py
-```
+Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su procedencia.
+`assets/placeholder.png` se conserva únicamente como respaldo si faltan imágenes.
 
 - `main.py`: inicio y selección explícita del modo API.
 - `desktop_pet/window.py`: ventana, arrastre, menú y trabajo en segundo plano.
 - `desktop_pet/physics.py`: gravedad, colisiones, fricción e impulso al soltar.
+- `desktop_pet/sprites.py`: imágenes por estado, prioridad y orientación.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 
 La lógica está separada de la interfaz para facilitar una futura adaptación a
 otros sistemas. Esta entrega se verifica en Windows; no incluye instalador `.exe`,
-animación, voz, memoria ni inicio automático.
+ciclos de animación cuadro a cuadro, voz, memoria ni inicio automático.
 
 ## Verificación sin API
 
