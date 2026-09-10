@@ -32,6 +32,7 @@ class WindowTests(unittest.TestCase):
         self.settings = QSettings(str(Path(self.temp_settings.name) / 'settings.ini'), QSettings.Format.IniFormat)
         self.settings.setValue('physics/enabled', False)
         self.settings.setValue('autonomy/cursor_push', False)
+        self.settings.setValue('autonomy/cursor_carry', False)
         self.cursor_guard = patch('desktop_pet.autonomy.QCursor.setPos',
                                   side_effect=AssertionError('Real cursor writes forbidden in tests'))
         self.cursor_guard.start()
@@ -483,6 +484,114 @@ class WindowTests(unittest.TestCase):
         window.set_cursor_push_enabled(False)
         self.assertFalse(self.settings.value('autonomy/cursor_push', type=bool))
         self.assertFalse(window.autonomy.cursor_push_enabled)
+
+    def carry_setup(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.set_cursor_carry_enabled(True)
+        window.place_bottom_right()
+        window._stop_motion()
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(80, 300).toPoint()
+        return window, auto, target
+
+    def test_carry_moves_pointer_with_cat_then_releases_at_three_seconds(self):
+        window, auto, target = self.carry_setup()
+        cursor = [target]
+        with patch('desktop_pet.autonomy.QCursor.pos', side_effect=lambda: cursor[0]), \
+                patch('desktop_pet.autonomy.QCursor.setPos', side_effect=lambda p: cursor.__setitem__(0, p)) as move:
+            auto.pounce(target)
+            auto.animation.setCurrentTime(auto.animation.duration())
+            self.assertTrue(auto.carrying)
+            self.assertFalse(auto.swatting)
+            start = window.pos()
+            auto.carry_animation.setCurrentTime(1500)
+            self.assertNotEqual(window.pos(), start)
+            self.assertEqual(cursor[0], window.pos() + auto.mouth_offset())
+            self.assertTrue(window.screen().availableGeometry().contains(cursor[0]))
+            self.assertTrue(window.screen().availableGeometry().contains(window.geometry()))
+            self.assertEqual(window.sprite_state, 'walking')
+            self.assertGreater(move.call_count, 0)
+            count = move.call_count
+            auto.carry_started = time.monotonic() - 3.01
+            auto.move_carry(.8)
+            self.assertFalse(auto.carrying)
+            self.assertEqual(move.call_count, count)
+            self.assertTrue(auto.mouse.fired)
+            self.assertFalse(auto.mouse.poll(time.monotonic() + 30, cursor[0]))
+
+    def test_user_mouse_movement_releases_without_overwriting_it(self):
+        window, auto, target = self.carry_setup()
+        cursor = [target]
+        with patch('desktop_pet.autonomy.QCursor.pos', side_effect=lambda: cursor[0]), \
+                patch('desktop_pet.autonomy.QCursor.setPos', side_effect=lambda p: cursor.__setitem__(0, p)) as move:
+            auto.pounce(target)
+            auto.animation.setCurrentTime(auto.animation.duration())
+            auto.carry_animation.setCurrentTime(500)
+            cursor[0] = cursor[0] + QPointF(7, 0).toPoint()
+            user_position = cursor[0]
+            count = move.call_count
+            auto.move_carry(.3)
+            self.assertFalse(auto.carrying)
+            self.assertEqual(move.call_count, count)
+            self.assertEqual(cursor[0], user_position)
+            self.assertFalse(auto.mouse.fired)
+
+    def test_escape_and_mouse_button_cancel_carry_before_next_pointer_write(self):
+        for interrupt in ('escape_pressed', 'mouse_button_down'):
+            window, auto, target = self.carry_setup()
+            cursor = [target]
+            with patch('desktop_pet.autonomy.QCursor.pos', side_effect=lambda: cursor[0]), \
+                    patch('desktop_pet.autonomy.QCursor.setPos', side_effect=lambda p: cursor.__setitem__(0, p)) as move:
+                auto.pounce(target)
+                auto.animation.setCurrentTime(auto.animation.duration())
+                self.assertTrue(auto.carrying)
+                count = move.call_count
+                with patch('desktop_pet.autonomy.' + interrupt, return_value=True):
+                    auto.move_carry(.2)
+                self.assertFalse(auto.carrying)
+                self.assertEqual(move.call_count, count)
+            window.close()
+
+    def test_carry_option_and_close_release_immediately(self):
+        for action in ('disable', 'close', 'physics', 'menu'):
+            window, auto, target = self.carry_setup()
+            cursor = [target]
+            with patch('desktop_pet.autonomy.QCursor.pos', side_effect=lambda: cursor[0]), \
+                    patch('desktop_pet.autonomy.QCursor.setPos', side_effect=lambda p: cursor.__setitem__(0, p)) as move:
+                auto.pounce(target)
+                auto.animation.setCurrentTime(auto.animation.duration())
+                self.assertTrue(auto.carrying)
+                count = move.call_count
+                if action == 'disable':
+                    window.set_cursor_carry_enabled(False)
+                    self.assertFalse(self.settings.value('autonomy/cursor_carry', type=bool))
+                elif action == 'close':
+                    window.close()
+                elif action == 'physics':
+                    window.set_physics_enabled(False)
+                else:
+                    window.menu.popup(window.mapToGlobal(window.rect().center()))
+                self.assertFalse(auto.carrying)
+                auto.move_carry(.5)
+                self.assertEqual(move.call_count, count)
+            window.menu.hide()
+            window.close()
+
+    def test_carry_completes_on_real_event_loop_without_pointer_writes_after_release(self):
+        window, auto, target = self.carry_setup()
+        cursor = [target]
+        with patch('desktop_pet.autonomy.QCursor.pos', side_effect=lambda: cursor[0]), \
+                patch('desktop_pet.autonomy.QCursor.setPos', side_effect=lambda p: cursor.__setitem__(0, p)) as move:
+            auto.pounce(target)
+            auto.animation.setCurrentTime(auto.animation.duration())
+            self.wait_until(lambda: not auto.carrying, timeout=4000)
+            self.assertGreater(move.call_count, 1)
+            count = move.call_count
+            QTest.qWait(100)
+            self.assertEqual(move.call_count, count)
 
     def test_physics_timer_settles_and_saves_only_at_rest(self):
         window = self.make_window()

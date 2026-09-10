@@ -172,6 +172,10 @@ class PetWindow(QWidget):
         self.cursor_push_action.setChecked(self.settings.value("autonomy/cursor_push", True, type=bool))
         self.cursor_push_action.toggled.connect(self.set_cursor_push_enabled)
         self.menu.addAction(self.cursor_push_action)
+        self.cursor_carry_action = QAction("Llevarse el cursor (3 segundos)", self, checkable=True)
+        self.cursor_carry_action.setChecked(self.settings.value("autonomy/cursor_carry", True, type=bool))
+        self.cursor_carry_action.toggled.connect(self.set_cursor_carry_enabled)
+        self.menu.addAction(self.cursor_carry_action)
         self.reset_position_action = QAction("Volver a la esquina", self)
         self.reset_position_action.triggered.connect(self.reset_position)
         self.menu.addAction(self.reset_position_action)
@@ -206,7 +210,7 @@ class PetWindow(QWidget):
                              speaking=self.talking_timer.isActive(), walking=self.walking and moving)
         if self.autonomy and self.autonomy.pouncing:
             state = "falling"
-        elif self.autonomy and self.autonomy.swatting:
+        elif self.autonomy and (self.autonomy.swatting or self.autonomy.carrying):
             state = "walking"
         now = time.monotonic()
         if state != self.sprite_state:
@@ -264,6 +268,16 @@ class PetWindow(QWidget):
         self.settings.setValue("autonomy/cursor_push", enabled)
         self.settings.sync()
 
+    @pyqtSlot(bool)
+    def set_cursor_carry_enabled(self, enabled: bool) -> None:
+        self.cursor_carry_action.setChecked(enabled)
+        if self.autonomy:
+            self.autonomy.cursor_carry_enabled = enabled
+            if not enabled:
+                self.autonomy.finish_pounce()
+        self.settings.setValue("autonomy/cursor_carry", enabled)
+        self.settings.sync()
+
     def _end_speaking(self) -> None:
         self.talking_timer.stop()
         self._refresh_sprite()
@@ -290,7 +304,8 @@ class PetWindow(QWidget):
     def _start_motion(self) -> None:
         if (not self.physics_enabled or self._closing or not self.isVisible()
                 or self._drag_offset is not None or self.menu.isVisible() or self.input.hasFocus()
-                or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting))):
+                or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
+                                       or self.autonomy.carrying))):
             return
         self.body.x, self.body.y = float(self.x()), float(self.y())
         self.body.sleeping = False

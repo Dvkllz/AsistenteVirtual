@@ -21,7 +21,14 @@ Todos los fotogramas se cargan, escalan y reflejan una sola vez al iniciar.
 
 ## Interacción con el cursor
 
-Se eligió el empujón (no la captura con la boca): al alcanzar el cursor quieto,
+La captura está activada por defecto: al alcanzar el cursor quieto, lo lleva
+junto a la boca hasta tres segundos, caminando como máximo 120 píxeles. Reutiliza
+los fotogramas de caminar. Comprueba la posición, los botones y Escape antes de
+cada movimiento; se suelta sin recolocarlo si el usuario vuelve a usar el ratón.
+No bloquea ni oculta el cursor. Tiene un interruptor propio:
+Llevarse el cursor (3 segundos).
+
+Cuando la captura está desactivada, al alcanzar el cursor quieto,
 un zarpazo puede moverlo 24 px horizontalmente y 8 px hacia arriba, limitado al
 área útil del monitor. No hace clics, no bloquea el cursor y no encadena empujones
 por su propio movimiento. Comprueba otra vez la posición y los botones justo

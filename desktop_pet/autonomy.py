@@ -1,4 +1,4 @@
-"""Local habits with an optional, user-requested cursor nudge; never clicks."""
+"""Local habits with optional, interruptible cursor play; never clicks or locks."""
 
 import math
 import random
@@ -30,6 +30,13 @@ def mouse_button_down():
         import ctypes
         return any(ctypes.windll.user32.GetAsyncKeyState(key) & 0x8000
                    for key in (0x01, 0x02, 0x04, 0x05, 0x06))
+    return False
+
+
+def escape_pressed():
+    if sys.platform == "win32":
+        import ctypes
+        return bool(ctypes.windll.user32.GetAsyncKeyState(0x1B) & 0x8000)
     return False
 
 
@@ -81,6 +88,7 @@ class CatAutonomy:
         self.window = window
         self.enabled = window.settings.value("autonomy/enabled", True, type=bool)
         self.cursor_push_enabled = window.settings.value("autonomy/cursor_push", True, type=bool)
+        self.cursor_carry_enabled = window.settings.value("autonomy/cursor_carry", True, type=bool)
         self.rng = random.Random()
         now = time.monotonic()
         self.mouse = IdleMouse(now, QCursor.pos())
@@ -91,6 +99,9 @@ class CatAutonomy:
         self.pouncing = False
         self.pounce_progress = 0.0
         self.swatting = False
+        self.carrying = False
+        self.carry_expected = QPoint()
+        self.carry_started = 0.0
         self.target = QPoint()
         self.effect = SwatEffect(window)
         self.timer = QTimer(window)
@@ -108,6 +119,12 @@ class CatAutonomy:
         self.animation.setDuration(850)
         self.animation.valueChanged.connect(self.move_pounce)
         self.animation.finished.connect(self.swat)
+        self.carry_animation = QVariantAnimation(window)
+        self.carry_animation.setStartValue(0.0)
+        self.carry_animation.setEndValue(1.0)
+        self.carry_animation.setDuration(3000)
+        self.carry_animation.valueChanged.connect(self.move_carry)
+        self.carry_animation.finished.connect(self.finish_carry)
         if self.enabled:
             self.timer.start()
 
@@ -134,6 +151,10 @@ class CatAutonomy:
     def tick(self):
         w = self.window
         now, cursor = time.monotonic(), QCursor.pos()
+        if self.carrying:
+            if self.carry_interrupted(cursor):
+                self.finish_carry()
+            return
         blocked = self.busy() or not self.enabled
         moved = cursor != self.mouse.position
         trigger = self.mouse.poll(now, cursor, blocked)
@@ -186,6 +207,8 @@ class CatAutonomy:
         w.facing = 1 if cursor.x() >= w.character.mapToGlobal(w.character.rect().center()).x() else -1
         paw = w.character.pos() + QPoint(w.character.width() // 2 + w.facing * 35,
                                         w.character.height() - 18)
+        if self.cursor_carry_enabled:
+            paw = self.mouth_offset()
         self.start = w.pos()
         self.destination = cursor - paw
         self.bounds = w._bounds()
@@ -217,10 +240,13 @@ class CatAutonomy:
             return
         # Recheck at the instant of contact, not just the slower idle poll.
         if (self.busy() or not self.enabled or not self.window.physics_enabled
-                or QCursor.pos() != self.target):
+                or QCursor.pos() != self.target or escape_pressed()):
             self.finish_pounce()
             return
         self.pouncing = False
+        if self.cursor_carry_enabled:
+            self.start_carry()
+            return
         self.swatting = True
         self.effect.move(self.target - QPoint(28, 28))
         self.effect.show()
@@ -236,7 +262,83 @@ class CatAutonomy:
             self.mouse.fired = True
         self.swat_timer.start(350)
 
+    def mouth_offset(self):
+        w = self.window
+        return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * 43,
+                                          w.character.height() // 2 + 5)
+
+    def carry_interrupted(self, cursor=None):
+        if cursor is None:
+            cursor = QCursor.pos()
+        return (cursor != self.carry_expected or self.busy() or escape_pressed()
+                or not self.enabled or not self.cursor_carry_enabled
+                or not self.window.physics_enabled
+                or time.monotonic() - self.carry_started >= 3.0)
+
+    def start_carry(self):
+        w = self.window
+        # Called only after contact has rechecked the stationary cursor/buttons.
+        if (self.busy() or not self.enabled or not self.cursor_carry_enabled
+                or not w.physics_enabled or escape_pressed() or QCursor.pos() != self.target):
+            w._start_motion()
+            return
+        self.bounds = w._bounds()
+        self.carry_start = w.pos()
+        left, _, right, _ = self.bounds
+        direction = 1 if right - w.x() >= w.x() - left else -1
+        w.facing = direction
+        self.carry_destination = self.clamp(w.pos() + QPoint(direction * 120, 0))
+        self.carry_expected = QPoint(self.target)
+        self.carry_started = time.monotonic()
+        self.carrying = True
+        self.effect.hide()
+        w.character.setCursor(Qt.CursorShape.ArrowCursor)
+        w._refresh_sprite()
+        self.carry_animation.start()
+
+    def move_carry(self, progress):
+        if not self.carrying:
+            return
+        # Check before EVERY pointer write. Do not fight a user's mouse movement.
+        if self.carry_interrupted():
+            self.finish_carry()
+            return
+        t = float(progress)
+        delta = self.carry_destination - self.carry_start
+        point = self.carry_start + QPoint(round(delta.x() * t),
+                                          round(-math.sin(math.pi * t) * 6))
+        w = self.window
+        w.move(self.clamp(point))
+        w._refresh_sprite()
+        destination = w.pos() + self.mouth_offset()
+        area = w.screen().availableGeometry()
+        destination.setX(max(area.left(), min(area.right(), destination.x())))
+        destination.setY(max(area.top(), min(area.bottom(), destination.y())))
+        if destination != self.carry_expected:
+            QCursor.setPos(destination)
+            self.carry_expected = QPoint(destination)
+        self.mouse.position = QPoint(self.carry_expected)
+        self.mouse.fired = True
+
+    def finish_carry(self, resume=True):
+        if not self.carrying:
+            return
+        self.carrying = False
+        self.carry_animation.stop()
+        self.window.character.setCursor(Qt.CursorShape.OpenHandCursor)
+        # Release where it is. Never snap the pointer back after user activity.
+        cursor = QCursor.pos()
+        if cursor != self.carry_expected:
+            self.mouse = IdleMouse(time.monotonic(), cursor)
+        else:
+            self.mouse.position = QPoint(cursor)
+            self.mouse.fired = True
+        self.window._stop_motion()
+        if resume:
+            self.window._start_motion()
+
     def finish_pounce(self, resume=True):
+        self.finish_carry(resume=resume)
         active = self.pouncing or self.swatting
         self.animation.stop()
         self.swat_timer.stop()

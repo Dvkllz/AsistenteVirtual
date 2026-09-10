@@ -46,12 +46,19 @@ Se activan por defecto y puedes pausarlas con clic derecho →
   y cancela el intento si ya había empezado. La posición se consulta cada 250 ms.
 - El cursor debe estar fuera de la interfaz de la mascota y en su mismo monitor.
   El gato respeta el área útil, por lo que en los extremos solo puede acercarse.
-  El zarpazo ahora empuja el cursor real una sola vez: 24 píxeles hacia el lado
-  del golpe y 8 hacia arriba, sin salir del área útil. No hace clics ni lo bloquea.
+  Por defecto lo atrapa y lo lleva junto a la boca durante un paseo de hasta
+  tres segundos y 120 píxeles. No hace clics ni bloquea el ratón.
+  Se suelta antes del siguiente movimiento si mueves el ratón, pulsas un botón
+  o presionas Escape. También al abrir el menú, cerrar la mascota o desactivar
+  la física. Al soltarlo no devuelve el cursor a su posición anterior.
+  Clic derecho → **Llevarse el cursor (3 segundos)** permite desactivar la captura.
+  Si está desactivada, el zarpazo puede empujar el cursor una sola vez:
+  24 píxeles hacia el lado del golpe y 8 hacia arriba, sin salir del área útil.
   Cancela si mueves el cursor o mantienes pulsado un botón, también fuera de la app.
   Clic derecho → **Empujar cursor al dar zarpazo** permite desactivar solo ese
   empujón y conservar el efecto visual; la preferencia se recuerda.
-  Su propio empujón no inicia otra persecución.
+  Sus propios movimientos no inician otra persecución. Desactiva ambas opciones
+  del cursor para conservar solamente la interacción visual.
 
 Se pausan al escribir, seleccionar una respuesta, abrir el menú, arrastrar el
 gato o esperar una respuesta. Desactivar la física también desactiva los paseos
