@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import QApplication
 
 from desktop_pet.service import PetServiceError
 from desktop_pet.window import ASSET_PATH, PetWindow
+from desktop_pet.autonomy import IdleMouse, QUIPS
 
 
 class WindowTests(unittest.TestCase):
@@ -253,9 +254,151 @@ class WindowTests(unittest.TestCase):
 
     def test_smaller_character_keeps_text_readable(self):
         window = self.make_window()
-        self.assertEqual((window.width(), window.height()), (268, 360))
-        self.assertLessEqual(window.character.pixmap().height(), 140)
+        self.assertEqual((window.width(), window.height()), (268, 332))
+        self.assertEqual(window.character.pixmap().height(), 112)
         self.assertGreaterEqual(window.input.height(), 35)
+
+    def test_automatic_walk_is_short_and_does_not_take_focus(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        auto.next_walk = 0
+        auto.next_quip = float('inf')
+        with patch.object(window, 'setFocus', side_effect=AssertionError('Focus stolen')):
+            auto.tick()
+        self.assertTrue(auto.auto_walking)
+        self.assertTrue(window.walking)
+        self.assertTrue(5000 <= auto.walk_timer.interval() <= 10000)
+        auto.end_walk()
+        self.assertFalse(window.walking)
+
+    def test_automatic_jokes_are_local_and_respect_recent_or_pending_text(self):
+        window = self.make_window()
+        auto = window.autonomy
+        auto.timer.stop()
+        auto.next_walk = float('inf')
+        auto.next_quip = 0
+        original = window.bubble.text()
+        auto.tick()
+        self.assertEqual(window.bubble.text(), original)
+        window._last_response_at = time.monotonic() - 21
+        with patch('desktop_pet.window.answer_question', side_effect=AssertionError('Network request')):
+            auto.tick()
+        self.assertIn(window.bubble.text(), QUIPS)
+        self.assertTrue(window.talking_timer.isActive())
+        quip = window.bubble.text()
+        window.input.setText('Pregunta sin enviar')
+        auto.next_quip = 0
+        window._last_response_at = 0
+        auto.tick()
+        self.assertEqual(window.input.text(), 'Pregunta sin enviar')
+        self.assertEqual(window.bubble.text(), quip)
+        self.assertIsNone(window.worker)
+
+    def test_cursor_pounce_uses_ten_second_delay_and_never_moves_cursor(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        auto.next_walk = auto.next_quip = float('inf')
+        area = window.screen().availableGeometry()
+        target = area.topLeft() + QPointF(60, area.height() // 2).toPoint()
+        auto.mouse = IdleMouse(100, target)
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target), \
+                patch('desktop_pet.autonomy.QCursor.setPos', side_effect=AssertionError('Cursor moved')), \
+                patch('desktop_pet.autonomy.time.monotonic', return_value=109.9):
+            auto.tick()
+            self.assertFalse(auto.pouncing)
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target), \
+                patch('desktop_pet.autonomy.QCursor.setPos', side_effect=AssertionError('Cursor moved')), \
+                patch('desktop_pet.autonomy.time.monotonic', return_value=110):
+            auto.tick()
+            self.assertTrue(auto.pouncing)
+            self.assertEqual(window.sprite_state, 'falling')
+            auto.animation.setCurrentTime(auto.animation.duration())
+            self.assertTrue(auto.swatting)
+            self.assertEqual(window.sprite_state, 'walking')
+            self.assertTrue(auto.effect.windowFlags() & Qt.WindowType.WindowTransparentForInput)
+            self.assertTrue(area.contains(window.geometry()))
+            self.assertTrue(auto.effect.isVisible())
+            artifacts = Path(__file__).resolve().parent.parent / 'artifacts'
+            artifacts.mkdir(exist_ok=True)
+            self.assertTrue(window.grab().save(str(artifacts / 'mascota-swat-preview.png')))
+            auto.finish_pounce()
+            auto.tick()
+            self.assertFalse(auto.pouncing)
+            self.assertFalse(auto.effect.isVisible())
+
+    def test_mouse_movement_cancels_pounce_and_toggle_stops_all_habits(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        auto.mouse = IdleMouse(time.monotonic(), target)
+        auto.pounce(target)
+        self.assertTrue(auto.pouncing)
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target + QPointF(1, 0).toPoint()):
+            auto.tick()
+        self.assertFalse(auto.pouncing)
+        auto.pounce(target)
+        window.autonomy_action.trigger()
+        self.assertFalse(auto.enabled)
+        self.assertFalse(auto.timer.isActive())
+        self.assertFalse(auto.pouncing)
+        self.assertFalse(auto.swat_timer.isActive())
+        self.assertFalse(self.settings.value('autonomy/enabled', type=bool))
+        window.autonomy_action.trigger()
+        self.assertTrue(auto.timer.isActive())
+        window.close()
+        self.assertFalse(auto.timer.isActive())
+        self.assertFalse(auto.effect.isVisible())
+
+    def test_physics_disabled_prevents_automatic_movement_but_not_jokes(self):
+        window = self.make_window()
+        auto = window.autonomy
+        auto.timer.stop()
+        auto.next_walk = 0
+        target = window.screen().availableGeometry().topLeft()
+        auto.mouse = IdleMouse(time.monotonic() - 11, target)
+        with patch('desktop_pet.autonomy.QCursor.pos', return_value=target):
+            auto.tick()
+        self.assertFalse(window.walking)
+        self.assertFalse(auto.pouncing)
+
+    def test_pounce_and_swat_complete_on_event_loop(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        auto.pounce(target)
+        self.wait_until(lambda: auto.swatting)
+        self.assertTrue(auto.effect.isVisible())
+        self.wait_until(lambda: not auto.swatting)
+        self.assertFalse(auto.pouncing)
+        self.assertFalse(auto.effect.isVisible())
+        self.assertTrue(window.motion_timer.isActive())
+
+    def test_opening_menu_cancels_pounce_immediately(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        auto = window.autonomy
+        auto.timer.stop()
+        target = window.screen().availableGeometry().topLeft() + QPointF(60, 300).toPoint()
+        auto.pounce(target)
+        window.menu.popup(window.mapToGlobal(window.rect().center()))
+        self.app.processEvents()
+        self.assertFalse(auto.pouncing)
+        self.assertFalse(auto.effect.isVisible())
+        self.assertFalse(window.motion_timer.isActive())
+        window.menu.hide()
 
     def test_physics_timer_settles_and_saves_only_at_rest(self):
         window = self.make_window()

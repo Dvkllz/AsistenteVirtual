@@ -41,8 +41,8 @@ class SpriteTests(unittest.TestCase):
         self.assertEqual(sprites.missing, [])
         for state in SPRITE_STATES:
             right, left = sprites.pixmap(state), sprites.pixmap(state, -1)
-            self.assertLessEqual(right.width(), 146)
-            self.assertLessEqual(right.height(), 140)
+            self.assertLessEqual(right.width(), 117)
+            self.assertLessEqual(right.height(), 112)
             self.assertEqual(right.cacheKey(), sprites.pixmap(state).cacheKey())
             self.assertNotEqual(right.cacheKey(), left.cacheKey())
             self.assertEqual(right.size(), left.size())

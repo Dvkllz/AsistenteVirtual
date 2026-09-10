@@ -32,7 +32,7 @@ class SpriteSet:
                 self.missing.append(state)
                 source = fallback
             # Scale once at load, not on each physics tick. Keep generated alpha.
-            right = source.scaled(146, 140, Qt.AspectRatioMode.KeepAspectRatio,
+            right = source.scaled(117, 112, Qt.AspectRatioMode.KeepAspectRatio,
                                   Qt.TransformationMode.SmoothTransformation)
             self.frames[state, 1] = right
             self.frames[state, -1] = right.transformed(QTransform().scale(-1, 1))

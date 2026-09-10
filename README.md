@@ -8,8 +8,9 @@ esquina, cambiar de modo y cerrar la mascota.
 
 ## Movimiento y tamaño
 
-La ventana ahora mide 268 × 360 píxeles lógicos (antes 320 × 440); el personaje
-se ajusta a 146 × 140 manteniendo la proporción. El texto mantiene su tamaño legible.
+El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
+Se ajusta a un máximo de 117 × 112 manteniendo la proporción. La ventana mide
+268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
 
 - Arrastra y suelta el personaje: cae con gravedad y rebota suavemente.
 - Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
@@ -28,6 +29,29 @@ ventanas. Al soltarla queda dentro del monitor elegido al arrastrar. Si cambia l
 pantalla o una posición guardada queda fuera, vuelve a una ubicación visible.
 La física usa un temporizador solo durante el movimiento; en reposo se detiene.
 Todo funciona en modo local sin solicitudes a OpenAI.
+
+## Travesuras automáticas
+
+Se activan por defecto y puedes pausarlas con clic derecho →
+**Travesuras automáticas**. La preferencia se recuerda.
+
+- Paseos de 5–10 segundos, con oportunidades de inicio cada 20–45 segundos.
+  Alterna direcciones y rebota en los límites del monitor, sin robar el foco.
+- Frases graciosas cada 45–90 segundos, elegidas de una lista local sin repetir
+  la anterior. No consumen tokens, tampoco en modo OpenAI. Respetan al menos
+  20 segundos de lectura de la última respuesta y no borran preguntas pendientes.
+- Tras 10 segundos con el cursor quieto, intenta darle un zarpazo: se acerca con
+  un pequeño salto, muestra la pata levantada y un destello de arañazo.
+  Solo una vez por periodo de quietud; mover el ratón reinicia los 10 segundos
+  y cancela el intento si ya había empezado. La posición se consulta cada 250 ms.
+- El cursor debe estar fuera de la interfaz de la mascota y en su mismo monitor.
+  El gato respeta el área útil, por lo que en los extremos solo puede acercarse.
+  No mueve, bloquea ni pulsa el ratón real; el destello deja pasar los clics.
+
+Se pausan al escribir, seleccionar una respuesta, abrir el menú, arrastrar el
+gato o esperar una respuesta. Desactivar la física también desactiva los paseos
+y zarpazos, pero permite las bromas. No se instalan capturadores del teclado ni
+del ratón, no se guardan posiciones del cursor y no se envían a ningún servicio.
 
 ## Inicio rápido (sin gastar tokens)
 
@@ -96,6 +120,7 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 - `desktop_pet/window.py`: ventana, arrastre, menú y trabajo en segundo plano.
 - `desktop_pet/physics.py`: gravedad, colisiones, fricción e impulso al soltar.
 - `desktop_pet/sprites.py`: imágenes por estado, prioridad y orientación.
+- `desktop_pet/autonomy.py`: paseos ocasionales, bromas locales y juego con el cursor.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 
