@@ -1,10 +1,31 @@
 # Asistente Virtual · v1.0
 
-Mascota estática de escritorio en Python y PyQt6, inicialmente para Windows.
+Mascota de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
 encima de otras ventanas. Arrastra el personaje para moverlo; la posición se
 recuerda para el siguiente inicio. El menú de clic derecho permite volver a la
 esquina, cambiar de modo y cerrar la mascota.
+
+## Movimiento y tamaño
+
+La ventana ahora mide 268 × 360 píxeles lógicos (antes 320 × 440); el personaje
+se ajusta a 146 × 140 manteniendo la proporción. El texto mantiene su tamaño legible.
+
+- Arrastra y suelta el personaje: cae con gravedad y rebota suavemente.
+- Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
+  elimina el impulso horizontal. Los rebotes pierden fuerza hasta quedar en reposo.
+- Clic derecho → **Dar un salto** para hacerlo saltar.
+- Clic derecho → **Física activada** permite desactivar/reactivar el movimiento.
+  Esta preferencia se recuerda; el modo OpenAI sigue requiriendo activación explícita.
+- Al escribir o abrir el menú, la mascota se queda quieta. Al salir del campo de
+  texto puede volver a caer. Puedes desactivar la física para dejarla fija.
+
+Los límites son los del área útil del monitor (sin invadir la barra de tareas).
+Se mueve el conjunto de personaje y diálogo: no detecta superficies de otras
+ventanas. Al soltarla queda dentro del monitor elegido al arrastrar. Si cambia la
+pantalla o una posición guardada queda fuera, vuelve a una ubicación visible.
+La física usa un temporizador solo durante el movimiento; en reposo se detiene.
+Todo funciona en modo local sin solicitudes a OpenAI.
 
 ## Inicio rápido (sin gastar tokens)
 
@@ -69,6 +90,7 @@ con formas simples; se puede regenerar con:
 
 - `main.py`: inicio y selección explícita del modo API.
 - `desktop_pet/window.py`: ventana, arrastre, menú y trabajo en segundo plano.
+- `desktop_pet/physics.py`: gravedad, colisiones, fricción e impulso al soltar.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 

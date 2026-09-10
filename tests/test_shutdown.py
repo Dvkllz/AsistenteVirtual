@@ -11,11 +11,14 @@ class ShutdownTests(unittest.TestCase):
     def test_close_during_answer_exits_process(self):
         source = '''
 import time
-from PyQt6.QtCore import QTimer
+from tempfile import TemporaryDirectory
+from PyQt6.QtCore import QTimer, QSettings
 from PyQt6.QtWidgets import QApplication
 from desktop_pet.window import PetWindow
 app = QApplication([])
-window = PetWindow(responder=lambda q: (time.sleep(0.2), "Listo")[1])
+test_settings = TemporaryDirectory()
+settings = QSettings(test_settings.name + '/settings.ini', QSettings.Format.IniFormat)
+window = PetWindow(responder=lambda q: (time.sleep(0.2), "Listo")[1], settings=settings)
 window.show()
 window.input.setText("Hola")
 window.submit()

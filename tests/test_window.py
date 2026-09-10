@@ -4,6 +4,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
+from tempfile import TemporaryDirectory
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
@@ -26,9 +27,9 @@ class WindowTests(unittest.TestCase):
         self.guard = patch('socket.socket.connect', side_effect=AssertionError('Network forbidden in tests'))
         self.guard.start()
         self.windows = []
-        self.settings = QSettings(QSettings.Format.IniFormat, QSettings.Scope.UserScope,
-                                  "AsistenteVirtualTests", self.id())
-        self.settings.clear()
+        self.temp_settings = TemporaryDirectory()
+        self.settings = QSettings(str(Path(self.temp_settings.name) / 'settings.ini'), QSettings.Format.IniFormat)
+        self.settings.setValue('physics/enabled', False)
 
     def tearDown(self):
         for window in self.windows:
@@ -37,6 +38,7 @@ class WindowTests(unittest.TestCase):
             window.deleteLater()
         self.app.processEvents()
         self.guard.stop()
+        self.temp_settings.cleanup()
 
     def make_window(self, **kwargs):
         kwargs.setdefault('settings', self.settings)
@@ -177,3 +179,85 @@ class WindowTests(unittest.TestCase):
         window.input.setText('   ')
         QTest.keyClick(window.input, Qt.Key.Key_Return)
         self.assertIsNone(window.worker)
+
+    def test_smaller_character_keeps_text_readable(self):
+        window = self.make_window()
+        self.assertEqual((window.width(), window.height()), (268, 360))
+        self.assertLessEqual(window.character.pixmap().height(), 140)
+        self.assertGreaterEqual(window.input.height(), 35)
+
+    def test_physics_timer_settles_and_saves_only_at_rest(self):
+        window = self.make_window()
+        window.physics_action.trigger()
+        window.setFocus()
+        window.move(window.x(), window.y() - 100)
+        window._start_motion()
+        self.assertTrue(window.motion_timer.isActive())
+        window.motion_timer.stop()
+        with patch.object(window, 'save_position') as save:
+            for _ in range(1000):
+                window._last_tick = time.monotonic() - 1 / 60
+                window._tick_motion()
+                if window.body.sleeping:
+                    break
+            self.assertTrue(window.body.sleeping)
+            save.assert_called_once()
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertEqual(window.y(), window._bounds()[3])
+
+    def test_typing_pauses_motion_and_toggle_is_persistent(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        window.jump()
+        self.assertTrue(window.motion_timer.isActive())
+        window.input.setFocus()
+        self.app.processEvents()
+        self.assertFalse(window.motion_timer.isActive())
+        window.set_physics_enabled(False)
+        self.assertFalse(window.jump_action.isEnabled())
+        self.assertFalse(self.settings.value('physics/enabled', type=bool))
+        window.jump()
+        self.assertFalse(window.motion_timer.isActive())
+
+    def test_menu_pauses_motion_and_close_stops_timer(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.setFocus()
+        window.jump()
+        window.menu.popup(window.mapToGlobal(window.rect().center()))
+        self.app.processEvents()
+        self.assertFalse(window.motion_timer.isActive())
+        window.menu.hide()
+        window.close()
+        self.app.processEvents()
+        self.assertFalse(window.motion_timer.isActive())
+
+    def test_invalid_and_partially_offscreen_position_falls_back(self):
+        for x, y in [('broken', 10), (-267, 10), (999999, 999999)]:
+            self.settings.setValue('window/x', x)
+            self.settings.setValue('window/y', y)
+            window = self.make_window()
+            self.assertTrue(self.app.primaryScreen().availableGeometry().contains(window.geometry()))
+
+    def test_releasing_character_starts_gravity_and_regrabbing_stops_it(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.move(window.x(), window.y() - 140)
+        local = QPointF(window.character.rect().center())
+        origin = QPointF(window.character.mapToGlobal(local.toPoint()))
+        for kind, point, button, buttons in [
+            (QEvent.Type.MouseButtonPress, origin, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton),
+            (QEvent.Type.MouseMove, origin - QPointF(20, 20), Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton),
+            (QEvent.Type.MouseButtonRelease, origin - QPointF(20, 20), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton),
+        ]:
+            self.app.sendEvent(window.character, QMouseEvent(kind, local, point, button, buttons,
+                                                            Qt.KeyboardModifier.NoModifier))
+        self.assertTrue(window.motion_timer.isActive())
+        released_y = window.y()
+        self.wait_until(lambda: window.y() > released_y + 5)
+        current = QPointF(window.character.mapToGlobal(local.toPoint()))
+        self.app.sendEvent(window.character, QMouseEvent(QEvent.Type.MouseButtonPress, local, current,
+                           Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertEqual((window.body.vx, window.body.vy), (0, 0))
