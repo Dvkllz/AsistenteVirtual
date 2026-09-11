@@ -1,4 +1,4 @@
-"""Recognize deliberate horizontal back-and-forth motion, not a single pass."""
+"""Recognize a forgiving back-and-forth stroke, including natural curved turns."""
 
 
 class HeadStrokes:
@@ -8,28 +8,32 @@ class HeadStrokes:
     def reset(self):
         self.last = None
         self.direction = 0
-        self.distance = 0
-        self.previous_stroke = False
+        self.origin = None
+        self.extreme = 0
         self.active = False
 
     def feed(self, x, y, now):
-        if self.last is None or now - self.last[2] > .45:
+        if (self.last is None or now - self.last[2] >= .8
+                or abs(y - self.origin[1]) > 18):
             self.reset()
+            self.origin = (x, y)
+            self.extreme = x
             self.last = (x, y, now)
             return False
-        dx, dy = x - self.last[0], y - self.last[1]
+        dx = x - self.last[0]
+        if x == self.last[0] and y == self.last[1]:
+            return False
         self.last = (x, y, now)
-        if abs(dy) > abs(dx):
-            self.reset()
+        if self.direction == 0:
+            if abs(x - self.origin[0]) >= 6:
+                self.direction = 1 if x > self.origin[0] else -1
+                self.extreme = x
             return False
-        if not dx:
-            return False
-        direction = 1 if dx > 0 else -1
-        if direction != self.direction:
-            self.previous_stroke = self.distance >= 6
-            self.distance = 0
-            self.direction = direction
-        self.distance += abs(dx)
-        if self.previous_stroke and self.distance >= 6:
+        # Measure from the furthest point, not the last individual event.
+        # Vertical samples and tiny reverse jitters at the turn are harmless.
+        self.extreme = max(self.extreme, x) if self.direction > 0 else min(self.extreme, x)
+        if (self.extreme - x) * self.direction >= 6:
             self.active = True
-        return self.active
+            self.direction *= -1
+            self.extreme = x
+        return self.active and abs(dx) >= 1

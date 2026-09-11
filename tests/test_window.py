@@ -140,8 +140,8 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.settings.value('window/x', type=int), window.x())
         self.assertEqual(self.settings.value('window/y', type=int), window.y())
 
-    def pet_event(self, window, offset=0, *, body=False, held=False, outside=False):
-        point = QPointF(window._head_rect().center()) + QPointF(offset, 0)
+    def pet_event(self, window, offset=0, *, body=False, held=False, outside=False, vertical=0):
+        point = QPointF(window._head_rect().center()) + QPointF(offset, vertical)
         if body:
             point = QPointF(window.character.rect().center()) + QPointF(offset, 25)
         if outside:
@@ -250,6 +250,21 @@ class WindowTests(unittest.TestCase):
         self.assertFalse(window.purr.wanted)
         self.assertFalse(self.settings.value('sound/purr', type=bool))
         self.assertEqual(window.sprite_state, 'petting')
+
+    def test_curved_caricia_works_after_typing_and_preserves_question_focus(self):
+        window = self.make_window()
+        window.input.setText('Pregunta pendiente')
+        window.input.setFocus()
+        self.app.processEvents()
+        self.assertTrue(window.input.hasFocus())
+        points = ((-8, 0), (-5, 0), (-2, 1), (1, 1), (2, 3),
+                  (2, 5), (0, 5), (-3, 4), (-6, 4), (-8, 4))
+        for x, y in points:
+            self.pet_event(window, x, vertical=y)
+        self.assertTrue(window.petting)
+        self.assertEqual(window.sprite_state, 'petting')
+        self.assertTrue(window.input.hasFocus())
+        self.assertEqual(window.input.text(), 'Pregunta pendiente')
 
     def test_saved_position_is_restored(self):
         self.settings.setValue('window/x', 40)

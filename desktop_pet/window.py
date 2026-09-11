@@ -55,7 +55,7 @@ class PetWindow(QWidget):
         self.purr = PurrSound(self, self.settings.value("sound/purr", True, type=bool))
         self.pet_timer = QTimer(self)
         self.pet_timer.setSingleShot(True)
-        self.pet_timer.setInterval(350)
+        self.pet_timer.setInterval(650)
         self.pet_timer.timeout.connect(self._stop_petting)
         self.walking = False
         self.facing = 1
@@ -327,7 +327,7 @@ class PetWindow(QWidget):
 
     def _hover_head(self, event) -> None:
         if (event.buttons() != Qt.MouseButton.NoButton or self._closing or self.menu.isVisible()
-                or self.input.hasFocus() or self._drag_offset is not None
+                or self._drag_offset is not None
                 or self.sprite_state == "falling"
                 or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
                                        or self.autonomy.carrying))

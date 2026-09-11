@@ -3,6 +3,15 @@ from desktop_pet.petting import HeadStrokes
 
 
 class HeadStrokesTests(unittest.TestCase):
+    def test_curved_return_with_vertical_samples_is_a_stroke(self):
+        for sign in (1, -1):
+            gesture = HeadStrokes()
+            points = ((0, 0), (3, 0), (6, 1), (9, 1), (10, 3),
+                      (10, 5), (8, 5), (5, 4), (2, 4), (0, 4))
+            results = [gesture.feed(sign * x, y, i * .04)
+                       for i, (x, y) in enumerate(points)]
+            self.assertTrue(any(results))
+
     def test_single_pass_jitter_and_stationary_mouse_are_not_strokes(self):
         gesture = HeadStrokes()
         for index, x in enumerate((0, 1, 0, 1, 0, 3, 6, 9, 12, 12)):

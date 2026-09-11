@@ -39,7 +39,9 @@ cuerpo o dejarlo quieto no activa las caricias.
 **Clic izquierdo y arrastrar** sigue sirviendo para agarrarlo y lanzarlo,
 sin Mayús ni otras teclas. Agarrarlo interrumpe las caricias inmediatamente.
 
-El ronroneo se detiene al pulsar un botón, salir de la cabeza o pasar 350 ms sin mover
+El gesto admite pequeñas curvas y funciona aunque el campo de preguntas conserve
+el foco, sin borrarlo ni interrumpir la escritura.
+El ronroneo se detiene al pulsar un botón, salir de la cabeza o pasar 650 ms sin mover
 el ratón. También al cambiar de aplicación, abrir el menú o cerrar la mascota.
 Mientras lo acaricias, se pausan la física y las travesuras, sin robar el foco.
 Puedes silenciarlo con clic derecho → **Ronroneo al acariciar**; se recuerda
