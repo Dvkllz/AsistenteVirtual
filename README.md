@@ -49,6 +49,28 @@ la preferencia y la pose sigue funcionando sin sonido. Es un WAV sintético loca
 original y sin red: no usa voz ni consume tokens. Si no hay dispositivo de audio,
 la interacción visual sigue disponible.
 
+## Sonidos y diálogo temporal
+
+Los cuatro MP3 proporcionados se copian a `assets/audio/`; no dependen de la
+carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
+
+- `speech.mp3`: acompaña el diálogo en bucle mientras habla.
+- `end.mp3`: una vez al terminar de mostrar el diálogo.
+- `caminar1.mp3`: bucle mientras camina, incluido el paseo llevando el cursor.
+  Se detiene al parar, saltar, agarrarlo, acariciarlo o abrir el menú.
+- `explota.mp3`: una vez al cerrar. La ventana desaparece enseguida y el proceso
+  deja terminar el sonido sin bloquear la interfaz. Si falla el audio, se cierra
+  igualmente; hay un límite de seguridad de 10 segundos para la reproducción.
+
+El globo aparece solo durante el diálogo (1,8–6,5 segundos según la longitud),
+también para errores o avisos, y después queda invisible. Su espacio se reserva
+para que el gato no salte de posición. El campo de preguntas y el indicador de
+modo siguen disponibles. No hay globo ni sonido de bienvenida al iniciar.
+
+Clic derecho → **Sonidos del gato** permite silenciar estos cuatro efectos;
+se recuerda la preferencia. El ronroneo tiene su propio interruptor.
+Interrumpir un diálogo con otro o cerrar no reproduce el sonido de fin anterior.
+
 ## Travesuras automáticas
 
 Se activan por defecto y puedes pausarlas con clic derecho →
@@ -132,7 +154,8 @@ facturación dependen de tu cuenta de la API.
 Las solicitudes corren en `QThread`. Se deshabilita la entrada mientras llega
 la respuesta para evitar envíos duplicados; la mascota sigue siendo arrastrable.
 Si cierras durante una solicitud, la ventana desaparece de inmediato y el proceso
-termina cuando acaba la solicitud o su espera. Cerrar no garantiza cancelar una
+termina cuando acaban tanto la solicitud (o su espera) como el sonido de cierre.
+Cerrar no garantiza cancelar una
 solicitud ya recibida por OpenAI ni su posible coste.
 
 ## Gato siamés y estructura
@@ -143,7 +166,8 @@ en `assets/siamese/`: `idle.png` (quieto), `talking.png` (mostrando una respuest
 `petting.png` (acariciado).
 Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
 Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
-El estado de hablar dura unos segundos; no tiene voz ni llamadas adicionales.
+El estado de hablar dura unos segundos y reproduce el efecto MP3 proporcionado;
+no sintetiza la respuesta como voz ni hace llamadas adicionales.
 
 Caminar usa cuatro fotogramas en bucle (120 ms cada uno), con perfil, tamaño y
 encuadre común para evitar cambios de escala entre pasos. Saltar muestra cuatro
@@ -163,6 +187,7 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 - `desktop_pet/sprites.py`: imágenes por estado, prioridad y orientación.
 - `desktop_pet/autonomy.py`: paseos ocasionales, bromas locales y juego con el cursor.
 - `desktop_pet/purring.py`: reproducción local del ronroneo, sin bloquear la interfaz.
+- `desktop_pet/sounds.py`: efectos MP3, bucles y finalización del sonido al cerrar.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 

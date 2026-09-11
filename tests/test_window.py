@@ -32,6 +32,7 @@ class WindowTests(unittest.TestCase):
         self.settings = QSettings(str(Path(self.temp_settings.name) / 'settings.ini'), QSettings.Format.IniFormat)
         self.settings.setValue('physics/enabled', False)
         self.settings.setValue('sound/purr', False)
+        self.settings.setValue('sound/effects', False)
         self.settings.setValue('autonomy/cursor_push', False)
         self.settings.setValue('autonomy/cursor_carry', False)
         self.cursor_guard = patch('desktop_pet.autonomy.QCursor.setPos',
@@ -122,6 +123,76 @@ class WindowTests(unittest.TestCase):
         QTest.qWait(40)
         self.assertEqual(window.bubble.textFormat(), Qt.TextFormat.PlainText)
         self.assertGreater(window.scroll.verticalScrollBar().maximum(), 0)
+
+    def test_dialog_hidden_at_rest_and_does_not_shift_character(self):
+        window = self.make_window()
+        self.assertTrue(window.scroll.isHidden())
+        self.assertTrue(window.input.isVisible())
+        artifacts = Path(__file__).resolve().parent.parent / 'artifacts'
+        artifacts.mkdir(exist_ok=True)
+        rest = window.grab()
+        scale = rest.devicePixelRatio()
+        self.assertEqual(rest.toImage().pixelColor(round(30 * scale), round(30 * scale)).alpha(), 0)
+        rest.save(str(artifacts / 'mascota-silent.png'))
+        position = window.character.geometry()
+        with patch.object(window.sounds, 'start_speech') as start, \
+                patch.object(window.sounds, 'stop_speech') as stop:
+            window._on_answer('Miau. Te estoy hablando.')
+            self.app.processEvents()
+            self.assertTrue(window.scroll.isVisible())
+            speaking = window.grab()
+            self.assertGreater(speaking.toImage().pixelColor(round(30 * scale), round(30 * scale)).alpha(), 0)
+            speaking.save(str(artifacts / 'mascota-speaking.png'))
+            self.assertEqual(window.character.geometry(), position)
+            start.assert_called_once()
+            window.talking_timer.start(20)
+            self.wait_until(window.scroll.isHidden)
+            stop.assert_called_once_with(completed=True)
+            self.assertEqual(window.character.geometry(), position)
+            self.assertFalse(window.talking_timer.isActive())
+
+    def test_error_dialog_also_speaks_and_disappears(self):
+        window = self.make_window()
+        window.show_response('No hay conexión.')
+        self.assertTrue(window.scroll.isVisible())
+        self.assertTrue(window.sounds.speaking)
+        window.talking_timer.start(20)
+        self.wait_until(window.scroll.isHidden)
+        self.assertFalse(window.sounds.speaking)
+
+    def test_walking_audio_follows_movement_and_not_jumps(self):
+        window = self.make_window()
+        window.move(window.x(), window._bounds()[3])
+        window.set_physics_enabled(True)
+        window.set_walking(True)
+        self.assertTrue(window.sounds.walking)
+        window._pause_motion()
+        self.assertFalse(window.sounds.walking)
+        window._start_motion()
+        self.assertTrue(window.sounds.walking)
+        window.jump()
+        self.assertFalse(window.sounds.walking)
+
+    def test_close_hides_immediately_and_waits_for_sound_once(self):
+        window = self.make_window()
+        with patch.object(window.sounds, 'begin_close', return_value=True) as close_sound:
+            window.close()
+            window.close()
+            self.assertFalse(window.isVisible())
+            self.assertTrue(window._close_sound_pending)
+            close_sound.assert_called_once()
+            window._close_sound_finished()
+            self.app.processEvents()
+            self.assertFalse(window._close_sound_pending)
+
+    def test_effects_toggle_is_persistent_and_keeps_dialog_visible(self):
+        window = self.make_window()
+        window.show_response('Sonido opcional.')
+        with patch.object(window.sounds, 'set_enabled') as enabled:
+            window.sounds_action.setChecked(True)
+            enabled.assert_called_once_with(True)
+        self.assertTrue(self.settings.value('sound/effects', type=bool))
+        self.assertTrue(window.scroll.isVisible())
 
     def test_drag_character(self):
         window = self.make_window()

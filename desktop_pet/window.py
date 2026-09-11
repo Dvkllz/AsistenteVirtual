@@ -15,6 +15,7 @@ from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state, select_fram
 from desktop_pet.autonomy import CatAutonomy
 from desktop_pet.purring import PurrSound
 from desktop_pet.petting import HeadStrokes
+from desktop_pet.sounds import CatSounds
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -47,6 +48,10 @@ class PetWindow(QWidget):
         self.settings = settings or QSettings()
         self.worker: AnswerThread | None = None
         self._closing = False
+        self._close_sound_pending = False
+        self._dialog_active = False
+        self.sounds = CatSounds(self, enabled=self.settings.value("sound/effects", True, type=bool))
+        self.sounds.close_finished.connect(self._close_sound_finished)
         self.autonomy = None
         self._last_response_at = time.monotonic()
         self._drag_offset: QPoint | None = None
@@ -67,7 +72,7 @@ class PetWindow(QWidget):
         self.sprites = SpriteSet()
         self.talking_timer = QTimer(self)
         self.talking_timer.setSingleShot(True)
-        self.talking_timer.timeout.connect(self._refresh_sprite)
+        self.talking_timer.timeout.connect(lambda: self._end_speaking(completed=True))
         self.body = Body()
         self.drag_velocity = DragVelocity()
         self.physics_enabled = self.settings.value("physics/enabled", True, type=bool)
@@ -124,8 +129,12 @@ class PetWindow(QWidget):
         self.scroll.setStyleSheet("QScrollArea { background: transparent; }")
         self.scroll.viewport().setAutoFillBackground(False)
         self.scroll.setFixedHeight(118)
+        policy = self.scroll.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.scroll.setSizePolicy(policy)
         self.scroll.setWidget(self.bubble)
         layout.addWidget(self.scroll)
+        self.scroll.hide()
 
         self.character = QLabel()
         self.character.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -190,6 +199,10 @@ class PetWindow(QWidget):
         self.purr_action.setChecked(self.purr.enabled)
         self.purr_action.toggled.connect(self.set_purr_enabled)
         self.menu.addAction(self.purr_action)
+        self.sounds_action = QAction("Sonidos del gato", self, checkable=True)
+        self.sounds_action.setChecked(self.sounds.enabled)
+        self.sounds_action.toggled.connect(self.set_sounds_enabled)
+        self.menu.addAction(self.sounds_action)
         self.reset_position_action = QAction("Volver a la esquina", self)
         self.reset_position_action.triggered.connect(self.reset_position)
         self.menu.addAction(self.reset_position_action)
@@ -203,7 +216,7 @@ class PetWindow(QWidget):
                 lambda point, target=surface: self.menu.popup(target.mapToGlobal(point))
             )
 
-        self.set_mode(live, announce=True)
+        self.set_mode(live, announce=False)
         if not self.restore_position():
             self.place_bottom_right()
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -243,6 +256,9 @@ class PetWindow(QWidget):
         if key != self._sprite_key:
             self.character.setPixmap(self.sprites.pixmap(state, self.facing, frame))
             self._sprite_key = key
+        self.sounds.set_walking(not self._closing and (
+            (self.walking and moving and not airborne)
+            or (self.autonomy and self.autonomy.carrying)))
 
     def _cancel_walk(self) -> None:
         if self.autonomy:
@@ -294,9 +310,17 @@ class PetWindow(QWidget):
         self.settings.setValue("autonomy/cursor_carry", enabled)
         self.settings.sync()
 
-    def _end_speaking(self) -> None:
+    def _end_speaking(self, *, completed: bool = False) -> None:
         self.talking_timer.stop()
+        self.scroll.hide()
+        self.sounds.stop_speech(completed=completed and self._dialog_active)
+        self._dialog_active = False
         self._refresh_sprite()
+
+    def set_sounds_enabled(self, enabled: bool) -> None:
+        self.sounds.set_enabled(enabled)
+        self.settings.setValue("sound/effects", enabled)
+        self.settings.sync()
 
     def set_purr_enabled(self, enabled: bool) -> None:
         self.purr.set_enabled(enabled)
@@ -580,9 +604,16 @@ class PetWindow(QWidget):
 
     @pyqtSlot(str)
     def show_response(self, text: str) -> None:
+        if self._closing:
+            return
         self._last_response_at = time.monotonic()
         self.bubble.setText(text)
         self.scroll.verticalScrollBar().setValue(0)
+        self._dialog_active = True
+        self.scroll.show()
+        self.talking_timer.start(max(1800, min(6500, len(text) * 45)))
+        self.sounds.start_speech()
+        self._refresh_sprite()
 
     @pyqtSlot(str)
     def _on_answer(self, text: str) -> None:
@@ -590,8 +621,6 @@ class PetWindow(QWidget):
             return
         self.input.clear()
         self.show_response(text)
-        self.talking_timer.start(max(1800, min(6500, len(text) * 45)))
-        self._refresh_sprite()
 
     @pyqtSlot()
     def _on_finished(self) -> None:
@@ -599,28 +628,36 @@ class PetWindow(QWidget):
             self.worker.deleteLater()
             self.worker = None
         if self._closing:
-            self.close()
-            # A previously hidden window may not emit lastWindowClosed.
-            QApplication.instance().quit()
+            self._finish_close_if_ready()
             return
         self.input.setEnabled(True)
         self.demo_action.setEnabled(True)
         self.live_action.setEnabled(True)
         self.input.setFocus()
 
+    def _close_sound_finished(self) -> None:
+        self._close_sound_pending = False
+        QTimer.singleShot(0, self._finish_close_if_ready)
+
+    def _finish_close_if_ready(self) -> None:
+        if self._closing and self.worker is None and not self._close_sound_pending:
+            self.close()
+            # The window is already hidden while the final sound/worker finishes.
+            QApplication.instance().quit()
+
     def closeEvent(self, event: QCloseEvent) -> None:
-        self._closing = True
-        self._stop_petting()
-        if self.autonomy:
-            self.autonomy.close()
-        self._cancel_walk()
-        self.talking_timer.stop()
-        self._stop_motion()
-        self.save_position()
-        if self.worker is not None:
-            # Hide immediately; keep Qt alive until the HTTP worker finishes safely.
-            # Never terminate a running thread or block the GUI with wait().
+        if not self._closing:
             self._closing = True
+            self._stop_petting()
+            if self.autonomy:
+                self.autonomy.close()
+            self._cancel_walk()
+            self._end_speaking()
+            self._stop_motion()
+            self.save_position()
+            self._close_sound_pending = self.sounds.begin_close()
+        if self.worker is not None or self._close_sound_pending:
+            # Hide immediately but let the event loop finish audio and HTTP safely.
             self.hide()
             event.ignore()
         else:
