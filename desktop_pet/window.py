@@ -3,7 +3,7 @@
 from collections.abc import Callable
 import time
 
-from PyQt6.QtCore import QEvent, QPoint, QSettings, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QPoint, QRect, QSettings, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent
 from PyQt6.QtWidgets import (
     QApplication, QLabel, QLineEdit, QMenu, QScrollArea, QVBoxLayout, QWidget,
@@ -14,6 +14,7 @@ from desktop_pet.physics import Body, DragVelocity
 from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state, select_frame
 from desktop_pet.autonomy import CatAutonomy
 from desktop_pet.purring import PurrSound
+from desktop_pet.petting import HeadStrokes
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -49,9 +50,8 @@ class PetWindow(QWidget):
         self.autonomy = None
         self._last_response_at = time.monotonic()
         self._drag_offset: QPoint | None = None
-        self._pet_held = False
         self.petting = False
-        self._pet_last = None
+        self.head_strokes = HeadStrokes()
         self.purr = PurrSound(self, self.settings.value("sound/purr", True, type=bool))
         self.pet_timer = QTimer(self)
         self.pet_timer.setSingleShot(True)
@@ -131,8 +131,8 @@ class PetWindow(QWidget):
         self.character.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.character.setFixedHeight(112)
         self.character.setMouseTracking(True)
-        self.character.setAccessibleName("Mascota; clic y movimiento para acariciar; Mayús y arrastre para mover")
-        self.character.setToolTip("Clic y movimiento: caricias · Mayús + arrastrar: mover · Clic derecho: opciones")
+        self.character.setAccessibleName("Mascota; arrastra para lanzar; pasa el ratón sobre la cabeza para acariciar")
+        self.character.setToolTip("Arrastra y suelta: lanzar · Ratón de lado a lado sobre la cabeza, sin clic: caricias")
         self.character.setCursor(Qt.CursorShape.OpenHandCursor)
         self.character.setPixmap(self.sprites.pixmap("idle"))
         self.character.installEventFilter(self)
@@ -303,27 +303,54 @@ class PetWindow(QWidget):
         self.settings.setValue("sound/purr", enabled)
         self.settings.sync()
 
-    def _over_character(self, point: QPoint) -> bool:
+    def _head_rect(self) -> QRect:
+        # Normalized regions in the existing 512px sprites, mirrored with the cat.
+        x, y, width, height = ((.76, .37, .23, .25) if self.sprite_state == "walking"
+                               else (.38, .04, .46, .34))
+        if self.facing < 0:
+            x = 1 - x - width
         pixmap = self.character.pixmap()
         rect = pixmap.rect()
         rect.moveCenter(self.character.rect().center())
-        return rect.contains(point)
+        return QRect(rect.x() + round(x * rect.width()), rect.y() + round(y * rect.height()),
+                     round(width * rect.width()), round(height * rect.height()))
 
-    def _stop_petting(self, *, release: bool = False) -> None:
+    def _stop_petting(self) -> None:
+        was_petting = self.petting
         self.pet_timer.stop()
         self.purr.stop()
         self.petting = False
-        if release:
-            self._pet_held = False
-            self._pet_last = None
+        self.head_strokes.reset()
         self._refresh_sprite()
+        if was_petting:
+            QTimer.singleShot(0, self._start_motion)
+
+    def _hover_head(self, event) -> None:
+        if (event.buttons() != Qt.MouseButton.NoButton or self._closing or self.menu.isVisible()
+                or self.input.hasFocus() or self._drag_offset is not None
+                or self.sprite_state == "falling"
+                or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
+                                       or self.autonomy.carrying))
+                or not self._head_rect().contains(event.position().toPoint())):
+            self._stop_petting()
+            return
+        cursor = event.globalPosition()
+        if self.head_strokes.feed(cursor.x(), cursor.y(), time.monotonic()):
+            if not self.petting:
+                if self.autonomy:
+                    self.autonomy.cancel()
+                self._cancel_walk()
+                self._stop_motion()
+            self.petting = True
+            self.pet_timer.start()
+            self.purr.start()
+            self._refresh_sprite()
 
     def event(self, event) -> bool:
-        # Cancel even if the release is lost when switching apps or hiding.
+        # Clear hover gestures when switching apps or hiding.
         if (event.type() in (QEvent.Type.WindowDeactivate, QEvent.Type.Hide)
-                and getattr(self, "_pet_held", False)):
-            self._stop_petting(release=True)
-            QTimer.singleShot(0, self._start_motion)
+                and hasattr(self, "character")):
+            self._stop_petting()
         return super().event(event)
 
     def _bounds(self) -> tuple[int, int, int, int]:
@@ -340,7 +367,7 @@ class PetWindow(QWidget):
         self._refresh_sprite()
 
     def _pause_motion(self) -> None:
-        self._stop_petting(release=True)
+        self._stop_petting()
         if self.autonomy:
             self.autonomy.cancel()
         self.motion_timer.stop()
@@ -348,7 +375,7 @@ class PetWindow(QWidget):
 
     def _start_motion(self) -> None:
         if (not self.physics_enabled or self._closing or not self.isVisible()
-                or self._drag_offset is not None or self._pet_held
+                or self._drag_offset is not None or self.petting
                 or self.menu.isVisible() or self.input.hasFocus()
                 or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
                                        or self.autonomy.carrying))):
@@ -484,7 +511,7 @@ class PetWindow(QWidget):
     def eventFilter(self, watched, event) -> bool:
         if watched is getattr(self, "input", None):
             if event.type() == QEvent.Type.FocusIn:
-                self._stop_petting(release=True)
+                self._stop_petting()
                 if self.autonomy:
                     self.autonomy.cancel()
                 self._cancel_walk()
@@ -492,23 +519,9 @@ class PetWindow(QWidget):
             elif event.type() == QEvent.Type.FocusOut:
                 QTimer.singleShot(0, self._start_motion)
         if watched is self.character:
-            if event.type() == QEvent.Type.UngrabMouse and self._pet_held:
-                self._stop_petting(release=True)
-                self._start_motion()
-            elif event.type() == QEvent.Type.Leave and self._pet_held:
+            if event.type() in (QEvent.Type.UngrabMouse, QEvent.Type.Leave, QEvent.Type.MouseButtonPress):
                 self._stop_petting()
             if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
-                if not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
-                    if not self._over_character(event.position().toPoint()):
-                        return True
-                    if self.autonomy:
-                        self.autonomy.cancel()
-                    self._cancel_walk()
-                    self._stop_motion()
-                    self.setFocus()
-                    self._pet_held = True
-                    self._pet_last = event.position().toPoint()
-                    return True
                 if self.autonomy:
                     self.autonomy.cancel()
                 self._cancel_walk()
@@ -520,21 +533,8 @@ class PetWindow(QWidget):
                 self._refresh_sprite()
                 self.character.setCursor(Qt.CursorShape.ClosedHandCursor)
                 return True
-            if event.type() == QEvent.Type.MouseMove and self._pet_held:
-                if not event.buttons() & Qt.MouseButton.LeftButton:
-                    self._stop_petting(release=True)
-                    self._start_motion()
-                    return True
-                point = event.position().toPoint()
-                if not self._over_character(point):
-                    self._pet_last = point
-                    self._stop_petting()
-                elif (point - self._pet_last).manhattanLength() >= 2:
-                    self._pet_last = point
-                    self.petting = True
-                    self.pet_timer.start()
-                    self.purr.start()
-                    self._refresh_sprite()
+            if event.type() == QEvent.Type.MouseMove and self._drag_offset is None:
+                self._hover_head(event)
                 return True
             if event.type() == QEvent.Type.MouseMove and self._drag_offset is not None:
                 cursor = event.globalPosition().toPoint()
@@ -547,10 +547,6 @@ class PetWindow(QWidget):
                 self.drag_velocity.record(time.monotonic(), self.x(), self.y())
                 return True
             if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
-                if self._pet_held:
-                    self._stop_petting(release=True)
-                    self._start_motion()
-                    return True
                 if self._drag_offset is None:
                     return True
                 self._drag_offset = None
@@ -614,7 +610,7 @@ class PetWindow(QWidget):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
-        self._stop_petting(release=True)
+        self._stop_petting()
         if self.autonomy:
             self.autonomy.close()
         self._cancel_walk()

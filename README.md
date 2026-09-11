@@ -2,7 +2,7 @@
 
 Mascota de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
-encima de otras ventanas. Usa Mayús + arrastrar para moverlo; la posición se
+encima de otras ventanas. Haz clic y arrastra para moverlo; la posición se
 recuerda para el siguiente inicio. El menú de clic derecho permite volver a la
 esquina, cambiar de modo y cerrar la mascota.
 
@@ -12,7 +12,7 @@ El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
 Se ajusta a un máximo de 117 × 112 manteniendo la proporción. La ventana mide
 268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
 
-- Mantén Mayús y arrastra el personaje: al soltar cae y rebota suavemente.
+- Haz clic y arrastra el personaje: al soltar cae y rebota suavemente.
 - Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
   elimina el impulso horizontal. Los rebotes pierden fuerza hasta quedar en reposo.
 - Clic derecho → **Dar un salto** para hacerlo saltar.
@@ -32,14 +32,16 @@ Todo funciona en modo local sin solicitudes a OpenAI.
 
 ## Caricias y ronroneo
 
-Mantén el botón izquierdo sobre el gato y mueve el ratón de un lado a otro.
-Se queda quieto, cierra los ojos en una pose relajada y emite un ronroneo suave.
-Un clic sin movimiento no activa el sonido. Para moverlo o lanzarlo, mantén
-**Mayús desde el inicio del arrastre**; así no se confunde con una caricia.
+Pasa el ratón de un lado a otro **sobre su cabeza, sin pulsar botones**.
+Tras un movimiento de ida y vuelta, se queda quieto, cierra los ojos en una
+pose relajada y emite un ronroneo suave. Pasar una sola vez, moverlo sobre el
+cuerpo o dejarlo quieto no activa las caricias.
+**Clic izquierdo y arrastrar** sigue sirviendo para agarrarlo y lanzarlo,
+sin Mayús ni otras teclas. Agarrarlo interrumpe las caricias inmediatamente.
 
-El ronroneo se detiene al soltar, salir del personaje o pasar 350 ms sin mover
+El ronroneo se detiene al pulsar un botón, salir de la cabeza o pasar 350 ms sin mover
 el ratón. También al cambiar de aplicación, abrir el menú o cerrar la mascota.
-Mientras mantienes el clic, se pausan la física y las travesuras.
+Mientras lo acaricias, se pausan la física y las travesuras, sin robar el foco.
 Puedes silenciarlo con clic derecho → **Ronroneo al acariciar**; se recuerda
 la preferencia y la pose sigue funcionando sin sonido. Es un WAV sintético local,
 original y sin red: no usa voz ni consume tokens. Si no hay dispositivo de audio,

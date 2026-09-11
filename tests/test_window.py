@@ -133,82 +133,88 @@ class WindowTests(unittest.TestCase):
             (QEvent.Type.MouseMove, global_start - QPointF(40, 30), Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton),
             (QEvent.Type.MouseButtonRelease, global_start - QPointF(40, 30), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton),
         ]:
-            event = QMouseEvent(kind, local, global_pos, button, buttons, Qt.KeyboardModifier.ShiftModifier)
+            event = QMouseEvent(kind, local, global_pos, button, buttons, Qt.KeyboardModifier.NoModifier)
             self.app.sendEvent(window.character, event)
         self.assertEqual(window.pos(), start - QPointF(40, 30).toPoint())
         self.assertIsNone(window._drag_offset)
         self.assertEqual(self.settings.value('window/x', type=int), window.x())
         self.assertEqual(self.settings.value('window/y', type=int), window.y())
 
-    def pet_event(self, window, kind, offset=0, *, outside=False, held=True):
-        point = QPointF(window.character.rect().center()) + QPointF(offset, 0)
+    def pet_event(self, window, offset=0, *, body=False, held=False, outside=False):
+        point = QPointF(window._head_rect().center()) + QPointF(offset, 0)
+        if body:
+            point = QPointF(window.character.rect().center()) + QPointF(offset, 25)
         if outside:
             point = QPointF(-10, -10)
-        button = Qt.MouseButton.NoButton if kind == QEvent.Type.MouseMove else Qt.MouseButton.LeftButton
-        buttons = Qt.MouseButton.LeftButton if held else Qt.MouseButton.NoButton
-        event = QMouseEvent(kind, point, QPointF(window.character.mapToGlobal(point.toPoint())),
-                            button, buttons, Qt.KeyboardModifier.NoModifier)
-        self.app.sendEvent(window.character, event)
+        self.app.sendEvent(window.character, QMouseEvent(
+            QEvent.Type.MouseMove, point, QPointF(window.character.mapToGlobal(point.toPoint())),
+            Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton if held else Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier))
 
-    def test_pet_requires_held_movement_without_dragging(self):
+    def stroke_head(self, window, **kwargs):
+        for offset in (-8, 8, -8):
+            self.pet_event(window, offset, **kwargs)
+
+    def test_pet_requires_back_and_forth_over_head_without_buttons(self):
         window = self.make_window()
         start = window.pos()
-        self.pet_event(window, QEvent.Type.MouseMove, 4, held=False)
+        self.pet_event(window, -8)
+        self.pet_event(window, 8)
         self.assertFalse(window.petting)
-        self.pet_event(window, QEvent.Type.MouseButtonPress)
-        self.assertTrue(window._pet_held)
-        self.assertFalse(window.petting)
-        self.assertIsNone(window._drag_offset)
-        with patch.object(window.purr, 'start') as purr:
-            self.pet_event(window, QEvent.Type.MouseMove, 8)
-            purr.assert_called_once()
+        self.pet_event(window, -8)
         self.assertEqual(window.sprite_state, 'petting')
         self.assertEqual(window.pos(), start)
+        self.assertIsNone(window._drag_offset)
         self.assertTrue(window.autonomy.busy())
-        artifacts = Path(__file__).resolve().parent.parent / 'artifacts'
-        artifacts.mkdir(exist_ok=True)
-        window.grab().save(str(artifacts / 'mascota-petting-preview.png'))
-        self.pet_event(window, QEvent.Type.MouseButtonRelease, 8, held=False)
-        self.assertFalse(window._pet_held)
-        self.assertFalse(window.petting)
-        self.assertFalse(window.pet_timer.isActive())
-        self.assertFalse(window.purr.wanted)
-        self.assertEqual(window.sprite_state, 'idle')
 
-    def test_pet_stops_when_still_or_outside_and_resumes_with_movement(self):
+    def test_body_buttons_and_outside_do_not_pet(self):
         window = self.make_window()
-        self.pet_event(window, QEvent.Type.MouseButtonPress)
-        self.pet_event(window, QEvent.Type.MouseMove, 8)
+        for options in ({'body': True}, {'held': True}, {'outside': True}):
+            self.stroke_head(window, **options)
+            self.assertFalse(window.petting)
+
+    def test_pet_stops_when_still_outside_or_pressed(self):
+        window = self.make_window()
+        self.stroke_head(window)
+        self.assertTrue(window.petting)
         window.pet_timer.start(20)
         self.wait_until(lambda: not window.petting)
-        self.assertTrue(window._pet_held)
-        self.pet_event(window, QEvent.Type.MouseMove, -8)
-        self.assertTrue(window.petting)
-        self.pet_event(window, QEvent.Type.MouseMove, outside=True)
-        self.assertFalse(window.petting)
-        self.assertFalse(window.purr.wanted)
-        self.pet_event(window, QEvent.Type.MouseMove, 0)
-        self.assertTrue(window.petting)
-        self.pet_event(window, QEvent.Type.MouseMove, 8, held=False)
-        self.assertFalse(window._pet_held)
-        self.assertFalse(window.petting)
+        for options in ({'outside': True}, {'held': True}):
+            self.stroke_head(window)
+            self.assertTrue(window.petting)
+            self.pet_event(window, **options)
+            self.assertFalse(window.petting)
+            self.assertFalse(window.purr.wanted)
 
-    def test_pet_pauses_physics_and_resumes_on_release(self):
+    def test_pet_pauses_physics_and_resumes_when_strokes_stop(self):
         window = self.make_window()
+        window.move(window.x(), window._bounds()[3])
         window.set_physics_enabled(True)
-        self.pet_event(window, QEvent.Type.MouseButtonPress)
-        self.pet_event(window, QEvent.Type.MouseMove, 8)
+        self.stroke_head(window)
         window._start_motion()
         self.assertFalse(window.motion_timer.isActive())
         self.assertEqual(window.sprite_state, 'petting')
-        self.pet_event(window, QEvent.Type.MouseButtonRelease, 8, held=False)
-        self.assertTrue(window.motion_timer.isActive())
+        window.pet_timer.start(20)
+        self.wait_until(lambda: not window.petting)
+        self.wait_until(lambda: window.motion_timer.isActive())
+
+    def test_normal_click_interrupts_pet_and_immediately_grabs_cat(self):
+        window = self.make_window()
+        self.stroke_head(window)
+        self.assertTrue(window.petting)
+        QTest.mousePress(window.character, Qt.MouseButton.LeftButton)
+        self.assertFalse(window.petting)
+        self.assertFalse(window.purr.wanted)
+        self.assertIsNotNone(window._drag_offset)
+        self.assertEqual(window.sprite_state, 'falling')
+        QTest.mouseRelease(window.character, Qt.MouseButton.LeftButton)
+        self.assertIsNone(window._drag_offset)
 
     def test_pet_cancels_on_menu_deactivate_hide_ungrab_and_close(self):
         for action in ('menu', 'deactivate', 'hide', 'ungrab', 'close'):
             window = self.make_window()
-            self.pet_event(window, QEvent.Type.MouseButtonPress)
-            self.pet_event(window, QEvent.Type.MouseMove, 8)
+            self.stroke_head(window)
+            self.assertTrue(window.petting)
             if action == 'menu':
                 window._pause_motion()
             elif action == 'deactivate':
@@ -220,17 +226,25 @@ class WindowTests(unittest.TestCase):
             else:
                 window.close()
             self.assertFalse(window.petting, action)
-            self.assertFalse(window._pet_held, action)
             self.assertFalse(window.pet_timer.isActive(), action)
             self.assertFalse(window.purr.wanted, action)
+
+    def test_head_region_mirrors_and_hover_never_steals_focus(self):
+        window = self.make_window()
+        right = window._head_rect()
+        window.facing = -1
+        window._refresh_sprite()
+        self.assertLess(window._head_rect().center().x(), right.center().x())
+        with patch.object(window, 'setFocus', side_effect=AssertionError('Focus stolen')):
+            self.stroke_head(window)
+        self.assertTrue(window.petting)
 
     def test_purr_toggle_persists_and_pet_pose_works_muted(self):
         window = self.make_window()
         window.purr.effect.setMuted(True)
         window.purr_action.setChecked(True)
         self.assertTrue(self.settings.value('sound/purr', type=bool))
-        self.pet_event(window, QEvent.Type.MouseButtonPress)
-        self.pet_event(window, QEvent.Type.MouseMove, 8)
+        self.stroke_head(window)
         self.assertTrue(window.purr.wanted)
         window.purr_action.setChecked(False)
         self.assertFalse(window.purr.wanted)
@@ -298,9 +312,9 @@ class WindowTests(unittest.TestCase):
 
     def test_drag_and_jump_choose_falling_sprite(self):
         window = self.make_window()
-        QTest.mousePress(window.character, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier)
+        QTest.mousePress(window.character, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
         self.assertEqual(window.sprite_state, 'falling')
-        QTest.mouseRelease(window.character, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier)
+        QTest.mouseRelease(window.character, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
         self.assertEqual(window.sprite_state, 'idle')
         window.set_physics_enabled(True)
         window.jump()
@@ -757,12 +771,12 @@ class WindowTests(unittest.TestCase):
             (QEvent.Type.MouseButtonRelease, origin - QPointF(20, 20), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton),
         ]:
             self.app.sendEvent(window.character, QMouseEvent(kind, local, point, button, buttons,
-                                                            Qt.KeyboardModifier.ShiftModifier))
+                                                            Qt.KeyboardModifier.NoModifier))
         self.assertTrue(window.motion_timer.isActive())
         released_y = window.y()
         self.wait_until(lambda: window.y() > released_y + 5)
         current = QPointF(window.character.mapToGlobal(local.toPoint()))
         self.app.sendEvent(window.character, QMouseEvent(QEvent.Type.MouseButtonPress, local, current,
-                           Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier))
+                           Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
         self.assertFalse(window.motion_timer.isActive())
         self.assertEqual((window.body.vx, window.body.vy), (0, 0))
