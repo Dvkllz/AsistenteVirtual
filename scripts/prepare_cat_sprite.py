@@ -12,8 +12,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 
-def prepare(source: Path, target: Path) -> None:
-    original = Image.open(source).convert("RGBA")
+def remove_background(original: Image.Image) -> Image.Image:
+    original = original.convert("RGBA")
     rgb = np.asarray(original.convert("RGB")).astype(np.int16)
     red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     # The backdrop is neutral and light. Fur is warm; eyes are blue; points dark.
@@ -35,7 +35,12 @@ def prepare(source: Path, target: Path) -> None:
     bbox = mask.getbbox()
     if bbox is None:
         raise ValueError("No cat silhouette detected")
-    original = original.crop(bbox)
+    return original
+
+
+def prepare(source: Path, target: Path) -> None:
+    original = remove_background(Image.open(source))
+    original = original.crop(original.getbbox())
     original.thumbnail((480, 480), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (512, 512))
     canvas.alpha_composite(original, ((512 - original.width) // 2,

@@ -18,7 +18,7 @@ class SpriteTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
         cls.app.setQuitOnLastWindowClosed(False)
 
-    def test_four_distinct_transparent_images(self):
+    def test_distinct_transparent_images(self):
         hashes = set()
         for state in SPRITE_STATES:
             path = SPRITE_DIR / f'{state}.png'
@@ -34,7 +34,7 @@ class SpriteTests(unittest.TestCase):
                       for x in range(0, 512, 8) for y in range(0, 512, 8)]
             self.assertGreater(pixels.count(0), len(pixels) * .25)
             self.assertGreater(pixels.count(255), len(pixels) * .15)
-        self.assertEqual(len(hashes), 4)
+        self.assertEqual(len(hashes), len(SPRITE_STATES))
 
     def test_cached_sprites_are_compact_and_mirrored(self):
         sprites = SpriteSet()

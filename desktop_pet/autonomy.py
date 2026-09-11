@@ -130,7 +130,7 @@ class CatAutonomy:
 
     def busy(self):
         w = self.window
-        return (w._closing or not w.isVisible() or w._drag_offset is not None
+        return (w._closing or not w.isVisible() or w._drag_offset is not None or w._pet_held
                 or w.menu.isVisible() or w.input.hasFocus() or bool(w.input.text())
                 or w.bubble.hasSelectedText() or w.worker is not None
                 or mouse_button_down())

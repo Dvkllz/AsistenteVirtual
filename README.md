@@ -2,7 +2,7 @@
 
 Mascota de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
-encima de otras ventanas. Arrastra el personaje para moverlo; la posición se
+encima de otras ventanas. Usa Mayús + arrastrar para moverlo; la posición se
 recuerda para el siguiente inicio. El menú de clic derecho permite volver a la
 esquina, cambiar de modo y cerrar la mascota.
 
@@ -12,7 +12,7 @@ El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
 Se ajusta a un máximo de 117 × 112 manteniendo la proporción. La ventana mide
 268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
 
-- Arrastra y suelta el personaje: cae con gravedad y rebota suavemente.
+- Mantén Mayús y arrastra el personaje: al soltar cae y rebota suavemente.
 - Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
   elimina el impulso horizontal. Los rebotes pierden fuerza hasta quedar en reposo.
 - Clic derecho → **Dar un salto** para hacerlo saltar.
@@ -29,6 +29,21 @@ ventanas. Al soltarla queda dentro del monitor elegido al arrastrar. Si cambia l
 pantalla o una posición guardada queda fuera, vuelve a una ubicación visible.
 La física usa un temporizador solo durante el movimiento; en reposo se detiene.
 Todo funciona en modo local sin solicitudes a OpenAI.
+
+## Caricias y ronroneo
+
+Mantén el botón izquierdo sobre el gato y mueve el ratón de un lado a otro.
+Se queda quieto, cierra los ojos en una pose relajada y emite un ronroneo suave.
+Un clic sin movimiento no activa el sonido. Para moverlo o lanzarlo, mantén
+**Mayús desde el inicio del arrastre**; así no se confunde con una caricia.
+
+El ronroneo se detiene al soltar, salir del personaje o pasar 350 ms sin mover
+el ratón. También al cambiar de aplicación, abrir el menú o cerrar la mascota.
+Mientras mantienes el clic, se pausan la física y las travesuras.
+Puedes silenciarlo con clic derecho → **Ronroneo al acariciar**; se recuerda
+la preferencia y la pose sigue funcionando sin sonido. Es un WAV sintético local,
+original y sin red: no usa voz ni consume tokens. Si no hay dispositivo de audio,
+la interacción visual sigue disponible.
 
 ## Travesuras automáticas
 
@@ -118,18 +133,22 @@ solicitud ya recibida por OpenAI ni su posible coste.
 
 ## Gato siamés y estructura
 
-La mascota es un siamés realista de complexión intermedia. Sus cuatro poses están
+La mascota es un siamés realista de complexión intermedia. Sus cinco estados están
 en `assets/siamese/`: `idle.png` (quieto), `talking.png` (mostrando una respuesta),
-`falling.png` (sujetado o en el aire) y `walking.png` (paseando).
+`falling.png` (sujetado o en el aire), `walking.png` (paseando) y
+`petting.png` (acariciado).
 Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
 Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
-El estado de hablar dura unos segundos; no hay audio ni llamadas adicionales.
+El estado de hablar dura unos segundos; no tiene voz ni llamadas adicionales.
 
-Caminar usa cuatro fotogramas en bucle (120 ms cada uno). Saltar muestra cuatro
+Caminar usa cuatro fotogramas en bucle (120 ms cada uno), con perfil, tamaño y
+encuadre común para evitar cambios de escala entre pasos. Saltar muestra cuatro
 poses según el impulso, ascenso, punto alto y descenso, también al perseguir el
 cursor. Se reutilizan los temporizadores de movimiento: no sigue animando en
 reposo ni carga imágenes en cada paso. El gato conserva su tamaño reducido.
 Consulta [los fotogramas y prompts](assets/siamese/animation/ANIMATION.md).
+La revisión de caminar y las caricias se documentan en
+[poses, sonido y prompts](assets/siamese/PETTING.md). El salto no se modificó.
 
 Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su procedencia.
 `assets/placeholder.png` se conserva únicamente como respaldo si faltan imágenes.
@@ -139,6 +158,7 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 - `desktop_pet/physics.py`: gravedad, colisiones, fricción e impulso al soltar.
 - `desktop_pet/sprites.py`: imágenes por estado, prioridad y orientación.
 - `desktop_pet/autonomy.py`: paseos ocasionales, bromas locales y juego con el cursor.
+- `desktop_pet/purring.py`: reproducción local del ronroneo, sin bloquear la interfaz.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 

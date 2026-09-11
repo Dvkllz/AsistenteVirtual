@@ -6,9 +6,10 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QTransform
 
 SPRITE_DIR = Path(__file__).resolve().parent.parent / "assets" / "siamese"
-SPRITE_STATES = ("idle", "talking", "falling", "walking")
+SPRITE_STATES = ("idle", "talking", "falling", "walking", "petting")
 FRAME_FILES = {
     "idle": ("idle.png",),
+    "petting": ("petting.png",),
     "talking": ("talking.png",),
     "walking": ("walking.png", "animation/walking_1.png", "animation/walking_2.png",
                 "animation/walking_3.png"),
