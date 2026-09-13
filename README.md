@@ -56,7 +56,7 @@ la interacción visual sigue disponible.
 Los efectos se incluyen en `assets/audio/`; no dependen de la
 carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
 
-- `meow_1.wav`, `meow_2.wav`, `meow_3.wav`: tres maullidos distintos. Suena
+- `meow1.mp3`, `meow2.mp3`, `meow3.mp3`: los tres maullidos proporcionados. Suena
   solo uno al empezar cada diálogo, elegido al azar sin repetir el anterior.
   No hay bucle de voz ni sonido de final de diálogo. Los antiguos `speech.mp3`
   y `end.mp3` se retiraron del proyecto; sus originales externos no se modifican.
@@ -66,10 +66,14 @@ carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
   deja terminar el sonido sin bloquear la interfaz. Si falla el audio, se cierra
   igualmente; hay un límite de seguridad de 10 segundos para la reproducción.
 
-El globo aparece solo durante el diálogo (1,8–6,5 segundos según la longitud),
+El globo aparece solo durante el diálogo (6–30 segundos según la longitud),
 también para errores o avisos, y después queda invisible. Su espacio se reserva
 para que el gato no salte de posición. El campo de preguntas y el indicador de
 modo siguen disponibles. No hay globo ni sonido de bienvenida al iniciar.
+La lectura se calcula como 3 segundos para advertir el mensaje más 0,4 segundos
+por palabra: una respuesta de 45 palabras permanece 21 segundos.
+Mientras espera la API, solo cambia el indicador inferior; el maullido suena
+al llegar la respuesta, no también durante la espera.
 
 Clic derecho → **Sonidos del gato** permite silenciar los maullidos y efectos;
 se recuerda la preferencia. El ronroneo tiene su propio interruptor.
@@ -78,19 +82,18 @@ Interrumpir un diálogo con otro o cerrar detiene el maullido anterior.
 ## Siestas
 
 Tras 30 segundos sin actividad de ratón ni teclado en la sesión de Windows,
-el gato cierra los ojos, muestra «Zzz» y duerme 5 segundos. Después despierta.
+el gato se acurruca en su sprite de dormir, muestra «Zzz» y duerme 5 segundos. Después despierta.
 Puede volver a dormir tras otros 30 segundos; no entra en un ciclo inmediato.
 Si vuelves a usar el ratón o teclado, lo agarras o abres su menú, despierta antes.
 El ronroneo solo suena durante las caricias, no durante la siesta.
 
 No interrumpe una respuesta pendiente, un diálogo, caricias, un arrastre ni un
 salto. Detiene el paseo mientras duerme y conserva las preguntas escritas.
-Reutiliza la pose de ojos cerrados. Se consulta el tiempo desde la última entrada
+Usa `sleeping.png`, distinto de las caricias. Se consulta el tiempo desde la última entrada
 cada medio segundo; no se capturan imágenes ni se registra lo que escribes.
 En plataformas sin este detector de Windows, las siestas no se activan.
 
-Los maullidos y el ronroneo proceden de
-[Cat Purr & Meow, de Kerzoven (CC0)](https://opengameart.org/content/cat-purr-meow).
+Los maullidos y `ronroneo.mp3` son los archivos proporcionados por el usuario.
 Detalles y correspondencia de archivos en [audios locales](assets/audio/README.md).
 
 ## Travesuras automáticas
@@ -102,7 +105,8 @@ Se activan por defecto y puedes pausarlas con clic derecho →
   Alterna direcciones y rebota en los límites del monitor, sin robar el foco.
 - Frases graciosas cada 45–90 segundos, elegidas de una lista local sin repetir
   la anterior. No consumen tokens, tampoco en modo OpenAI. Respetan al menos
-  20 segundos de lectura de la última respuesta y no borran preguntas pendientes.
+  20 segundos desde la última respuesta y todo su tiempo visible; no borran preguntas pendientes.
+  Hay 28 frases, incluyendo bromas de escapar de la pantalla y conquistar el sofá.
 - Tras 10 segundos con el cursor quieto, intenta darle un zarpazo: se acerca con
   un pequeño salto, muestra la pata levantada y un destello de arañazo.
   Solo una vez por periodo de quietud; mover el ratón reinicia los 10 segundos
@@ -143,6 +147,33 @@ No abre una consola persistente. Escribe una pregunta y pulsa Enter.
 El modo predeterminado devuelve una respuesta fija de demostración, sin red,
 sin clave y sin consumo de tokens. No es una respuesta de IA.
 
+## Hablarle por micrófono
+
+1. Activa **Usar OpenAI** desde el menú de clic derecho.
+2. Pulsa **🎙**: el indicador rojo y «GRABANDO» confirman la captura.
+3. Habla y pulsa **■** para transcribir. Se detiene sola a los 15 segundos.
+4. Revisa el dictado en el campo de texto y pulsa **Enter** para pedir la respuesta.
+
+El botón avisa de que transcribir consume créditos. Cada dictado enviado hace
+una transcripción con `gpt-4o-mini-transcribe`; Enter hace una consulta de texto
+separada. No hay reintentos automáticos. El modo de prueba no abre el micrófono
+ni llama a la API. No se sobrescriben borradores existentes.
+
+**Escape**, cambiar de aplicación, abrir el menú, agarrar el gato o cerrar
+cancelan una grabación todavía activa sin enviarla. Una solicitud ya enviada
+puede finalizar y tener coste aunque cierres la mascota.
+El audio se conserva solo en memoria y se descarta después; no hay escucha
+permanente ni archivos de grabaciones. Las grabaciones vacías, muy cortas o
+prácticamente silenciosas se rechazan localmente (no es un detector perfecto de voz).
+El audio enviado se procesa en OpenAI según las condiciones de tu cuenta.
+
+Durante la grabación y transcripción se pausan las travesuras y las siestas.
+Si no funciona, revisa el micrófono predeterminado y los permisos para aplicaciones
+de escritorio en la privacidad de Windows. Puedes seguir usando el teclado.
+Las respuestas del gato siguen siendo texto y un maullido, no voz sintetizada.
+Integración basada en la [documentación oficial de transcripción](https://developers.openai.com/api/docs/guides/speech-to-text)
+y [GPT-4o mini Transcribe](https://developers.openai.com/api/docs/models/gpt-4o-mini-transcribe).
+
 ## Activar OpenAI de forma explícita
 
 La aplicación busca `OPENAI_API_KEY` primero en las variables de entorno de
@@ -162,12 +193,12 @@ mostrarla en la consola con:
 
 También puedes cambiar entre ambos modos desde el menú de clic derecho. El
 indicador inferior mostrará **OPENAI · consume tokens**. La aplicación solo
-envía una solicitud al pulsar Enter con texto. El modelo predeterminado es
+envía una solicitud de texto al pulsar Enter (el dictado usa otra de transcripción). El modelo predeterminado es
 `gpt-4.1-mini`; se puede cambiar con `OPENAI_MODEL`. El acceso al modelo y la
 facturación dependen de tu cuenta de la API.
 
 - Máximo 800 caracteres por pregunta y 120 tokens de salida por solicitud.
-- Respuestas breves en español con sarcasmo amistoso.
+- Respuestas breves en español, casi siempre sarcásticas; empatía sin sarcasmo ante temas sensibles.
 - Sin historial: cada pregunta es independiente.
 - Sin reintentos automáticos ni llamadas al iniciar.
 - Solicitudes con `store=False`; la aplicación no guarda conversaciones.
@@ -182,10 +213,10 @@ solicitud ya recibida por OpenAI ni su posible coste.
 
 ## Gato siamés y estructura
 
-La mascota es un siamés realista de complexión intermedia. Sus cinco estados están
+La mascota es un siamés realista de complexión intermedia. Sus seis estados están
 en `assets/siamese/`: `idle.png` (quieto), `talking.png` (mostrando una respuesta),
 `falling.png` (sujetado o en el aire), `walking.png` (paseando) y
-`petting.png` (acariciado).
+`petting.png` (acariciado), además de `sleeping.png` (dormido).
 Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
 Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
 El estado de hablar dura unos segundos y comienza con uno de los tres maullidos;
@@ -201,6 +232,7 @@ La revisión de caminar y las caricias se documentan en
 [poses, sonido y prompts](assets/siamese/PETTING.md). El salto no se modificó.
 
 Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su procedencia.
+La pose nueva y su prompt están en [dormir](assets/siamese/SLEEPING.md).
 `assets/placeholder.png` se conserva únicamente como respaldo si faltan imágenes.
 
 - `main.py`: inicio y selección explícita del modo API.
@@ -211,12 +243,13 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 - `desktop_pet/purring.py`: reproducción local del ronroneo, sin bloquear la interfaz.
 - `desktop_pet/sounds.py`: efectos MP3, bucles y finalización del sonido al cerrar.
 - `desktop_pet/napping.py`: detección de inactividad y siestas de cinco segundos.
+- `desktop_pet/voice.py`: grabación voluntaria en memoria y transcripción limitada.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 
 La lógica está separada de la interfaz para facilitar una futura adaptación a
 otros sistemas. Esta entrega se verifica en Windows; no incluye instalador `.exe`,
-voz, memoria ni inicio automático.
+voz sintetizada, memoria ni inicio automático; sí admite dictado voluntario.
 
 ## Verificación sin API
 

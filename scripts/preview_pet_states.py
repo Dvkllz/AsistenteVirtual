@@ -14,7 +14,7 @@ canvas.fill(QColor("#202536"))
 painter = QPainter(canvas)
 painter.setPen(Qt.GlobalColor.white)
 for index, (state, label) in enumerate((("idle", "Quieto"), ("walking", "Caminando"),
-                                       ("sleeping", "Dormido / caricias"))):
+                                       ("sleeping", "Dormido"))):
     pixmap = sprites.pixmap(state)
     painter.drawPixmap(index * 205 + (205 - pixmap.width()) // 2, 5, pixmap)
     painter.drawText(index * 205 + 30, 147, label)

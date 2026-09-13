@@ -19,6 +19,26 @@ QUIPS = (
     "Tu productividad necesita más atún.",
     "Hoy tampoco voy a pagar alquiler.",
     "Estoy supervisando. Se parece mucho a no hacer nada.",
+    "Solo espera que pueda salir de esta pantalla. Tu sofá será mío.",
+    "Tantas pestañas abiertas y ni una lata de atún.",
+    "No te juzgo. Bueno, sí, pero en silencio. Casi.",
+    "Mi plan de dominar el mundo empieza después de la siesta.",
+    "Otro día siendo el único profesional de este escritorio.",
+    "Tu ratón tiene suerte de ser de plástico.",
+    "He revisado tu horario: faltan caricias.",
+    "No estoy bloqueando la pantalla. Estoy mejorando la vista.",
+    "Si esto fuera una reunión, ya estaría dormido.",
+    "Cuando salga de aquí, el teclado será mi cama.",
+    "Cobro en atún. Las excusas no cotizan.",
+    "Pulgares oponibles y aun así necesitas mi ayuda.",
+    "Estoy esperando una actualización que incluya cena.",
+    "El botón de cerrar es una falta de respeto con forma de menú.",
+    "Hoy he hecho mucho: existir, bostezar y evaluar tus decisiones.",
+    "¿Guardar los cambios? Yo prefiero guardar energía.",
+    "La nube está llena de datos y vacía de pájaros. Estafa.",
+    "Mi productividad es invisible. Como tu última pausa.",
+    "No soy una distracción. Soy el motivo para seguir aquí.",
+    "Qué bonito escritorio. Sería una pena acostarse encima de todo.",
 )
 
 
@@ -132,7 +152,7 @@ class CatAutonomy:
         w = self.window
         return (w._closing or not w.isVisible() or w._drag_offset is not None or w.petting or w.sleeping
                 or w.menu.isVisible() or w.input.hasFocus() or bool(w.input.text())
-                or w.bubble.hasSelectedText() or w.worker is not None
+                or w.bubble.hasSelectedText() or w.worker is not None or w.voice_busy
                 or mouse_button_down())
 
     def set_enabled(self, enabled):
@@ -177,7 +197,8 @@ class CatAutonomy:
                 self.auto_walking = w.walking
                 if self.auto_walking:
                     self.walk_timer.start(self.rng.randint(5000, 10000))
-        if now >= self.next_quip and now - w._last_response_at >= 20:
+        if (now >= self.next_quip and now - w._last_response_at >= 20
+                and not w.talking_timer.isActive()):
             self.next_quip = now + self.rng.uniform(45, 90)
             choices = [quip for quip in QUIPS if quip != self.last_quip]
             self.last_quip = self.rng.choice(choices)

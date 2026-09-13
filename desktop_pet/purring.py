@@ -1,30 +1,36 @@
-"""Local, non-blocking purr. Missing audio devices never block petting."""
+"""Local MP3 purr, looped only while petting; never opens a microphone."""
 
 from pathlib import Path
 from PyQt6.QtCore import QUrl
-from PyQt6.QtMultimedia import QSoundEffect
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 
-PURR_PATH = Path(__file__).resolve().parent.parent / 'assets/audio/purr_real.wav'
+PURR_PATH = Path(__file__).resolve().parent.parent / "assets/audio/ronroneo.mp3"
 
 
 class PurrSound:
     def __init__(self, parent, enabled=True):
         self.enabled = enabled
         self.wanted = False
-        self.effect = QSoundEffect(parent)
-        self.effect.setLoopCount(QSoundEffect.Loop.Infinite.value)
-        self.effect.setVolume(.4)
-        self.effect.statusChanged.connect(self._ready)
-        self.effect.setSource(QUrl.fromLocalFile(str(PURR_PATH)))
+        self.loaded = False
+        self.output = QAudioOutput(parent)
+        self.output.setVolume(.4)
+        self.effect = QMediaPlayer(parent)
+        self.effect.setAudioOutput(self.output)
+        self.effect.setLoops(QMediaPlayer.Loops.Infinite.value)
 
-    def _ready(self):
-        if (self.wanted and self.enabled and self.effect.status() == QSoundEffect.Status.Ready
-                and not self.effect.isPlaying()):
-            self.effect.play()
+    def is_playing(self):
+        return self.effect.playbackState() == QMediaPlayer.PlaybackState.PlayingState
 
     def start(self):
         self.wanted = self.enabled
-        self._ready()
+        if not self.wanted or self.is_playing():
+            return
+        if not self.loaded:
+            if not PURR_PATH.is_file():
+                return
+            self.loaded = True
+            self.effect.setSource(QUrl.fromLocalFile(str(PURR_PATH)))
+        self.effect.play()
 
     def stop(self):
         self.wanted = False

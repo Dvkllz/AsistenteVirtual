@@ -10,13 +10,17 @@ del fondo cuadriculado mediante procesamiento local, autorizada por el usuario.
 - `talking.png`: maullando mientras se muestra una respuesta (sin voz).
 - `falling.png`: en el aire o sujetado con el ratón.
 - `walking.png`: paseando por el borde inferior; se refleja al cambiar de dirección.
+- `petting.png`: relajado al acariciar su cabeza.
+- `sleeping.png`: acurrucado y dormido; [prompt y preparación](SLEEPING.md).
 
-Los cuatro PNG son RGBA de 512 × 512, con transparencia real. Se cargan y escalan
-una sola vez, a un máximo de 117 × 112 píxeles lógicos (20 % menos de altura).
+Los seis PNG son RGBA de 512 × 512, con transparencia real. Se cargan y escalan
+una sola vez: poses sentadas en 117 × 112 píxeles lógicos (20 % menos de altura);
+paseo y sueño en 152 × 112, con escala corporal y línea del suelo compartidas.
 Reposo y diálogo usan una imagen; caminar y saltar usan cuatro fotogramas cada
 uno. Véase [animaciones y prompts](animation/ANIMATION.md).
 
-Prioridad: arrastre/caída, respuesta, paseo, reposo. Hablar dura entre 1,8 y 6,5
+Prioridad habitual: arrastre/caída, respuesta, paseo, reposo; caricias y sueño
+tienen estados dedicados. Hablar dura entre 6 y 30
 segundos según el texto. Pasear se activa mediante clic derecho → Pasear;
 se cancela al escribir, arrastrar, saltar, desactivar la física o volver a la esquina.
 También puede activarse ocasionalmente mediante las travesuras automáticas.

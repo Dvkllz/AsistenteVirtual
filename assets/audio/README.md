@@ -1,32 +1,31 @@
 # Audios locales
 
-## Maullidos y ronroneo
+## Archivos del usuario
 
-Grabaciones de Kerzoven, publicadas con licencia **CC0** en
-[Cat Purr & Meow](https://opengameart.org/content/cat-purr-meow).
-Descargadas el 12 de septiembre de 2026 sin modificar el audio:
+Copiados sin modificar desde los archivos suministrados:
 
-- `meow_1.wav` ← `cat_mewfood.wav`
-- `meow_2.wav` ← `cat_mewpurr.wav`
-- `meow_3.wav` ← `cat_softmew.wav`
-- `purr_real.wav` ← `cat_purractive_loop.wav`
+- `meow1.mp3`, `meow2.mp3`, `meow3.mp3`: un maullido elegido al empezar
+  cada respuesta o aviso, sin repetir el anterior, sin bucle ni sonido de final.
+- `ronroneo.mp3`: bucle mientras se acaricia la cabeza; se detiene al terminar
+  el gesto, agarrarlo, abrir el menú, cambiar de app o cerrar.
+- `caminar1.mp3`: pasos en bucle solo mientras camina.
+- `explota.mp3`: una reproducción al cerrar.
 
-Un maullido por inicio de diálogo, sin repetición inmediata y sin sonido de fin.
-El ronroneo real se reproduce en bucle al acariciar.
+Los MP3 se cargan al utilizarlos por primera vez. No requieren Internet ni las
+carpetas Descargas/Escritorio originales. Sus originales permanecen intactos.
+Los maullidos duran aproximadamente 0,91, 2,04 y 0,86 segundos; el ronroneo
+completo dura 53,62 segundos y el gesto puede detenerlo antes.
 
-## Efectos del usuario
+Los efectos y el ronroneo tienen controles de silencio separados en el menú.
+No se ha determinado la licencia de los MP3; verificar los derechos antes de
+redistribuir públicamente la aplicación.
 
-Archivos proporcionados por el usuario y copiados sin modificar sus originales:
+## Recursos anteriores
 
-- `caminar1.mp3`: pasos (bucle solo mientras camina).
-- `explota.mp3`: cierre (una reproducción).
+Los tres `meow_*.wav` y `purr_real.wav` fueron reemplazados por los MP3 del
+usuario; pueden recuperarse del historial de Git. Procedían de Kerzoven,
+[Cat Purr & Meow](https://opengameart.org/content/cat-purr-meow), licencia CC0.
 
-La aplicación carga cada MP3 al utilizarlo por primera vez. No necesita la carpeta
-de origen ni conexión a Internet. Los efectos se pueden silenciar desde el menú.
-No se ha determinado la licencia de los MP3; antes de redistribuir públicamente
-la aplicación, verificar los derechos de estos audios.
-
-`speech.mp3` y `end.mp3` se retiraron de esta versión. Se pueden recuperar del
-historial de Git; los originales del Escritorio permanecen intactos.
-`purr.wav` es el antiguo ronroneo sintético de `scripts/create_purr.py`;
-se conserva como recurso histórico, pero la aplicación usa `purr_real.wav`.
+`speech.mp3` y `end.mp3` se retiraron en una versión anterior.
+`purr.wav` se conserva como recurso sintético histórico de
+`scripts/create_purr.py`, pero no se utiliza.

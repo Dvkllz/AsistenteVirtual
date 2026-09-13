@@ -7,7 +7,7 @@ from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 AUDIO_DIR = Path(__file__).resolve().parent.parent / "assets/audio"
 MEOWS = ("meow_1", "meow_2", "meow_3")
-FILES = {**{name: name + ".wav" for name in MEOWS},
+FILES = {**{name: name.replace("_", "") + ".mp3" for name in MEOWS},
          "close": "explota.mp3", "walk": "caminar1.mp3"}
 
 

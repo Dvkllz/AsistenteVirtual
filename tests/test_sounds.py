@@ -33,8 +33,8 @@ class SoundTests(unittest.TestCase):
 
     def test_correct_files_and_loop_modes_and_lazy_loading(self):
         sounds = self.make_sounds()
-        self.assertEqual(FILES, {"meow_1": "meow_1.wav", "meow_2": "meow_2.wav",
-                                "meow_3": "meow_3.wav", "close": "explota.mp3", "walk": "caminar1.mp3"})
+        self.assertEqual(FILES, {"meow_1": "meow1.mp3", "meow_2": "meow2.mp3",
+                                "meow_3": "meow3.mp3", "close": "explota.mp3", "walk": "caminar1.mp3"})
         for name, player in sounds.players.items():
             self.assertTrue((AUDIO_DIR / FILES[name]).is_file())
             player.setLoops.assert_called_once_with(-1 if name == "walk" else 1)

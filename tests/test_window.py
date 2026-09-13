@@ -313,7 +313,7 @@ class WindowTests(unittest.TestCase):
 
     def test_purr_toggle_persists_and_pet_pose_works_muted(self):
         window = self.make_window()
-        window.purr.effect.setMuted(True)
+        window.purr.output.setMuted(True)
         window.purr_action.setChecked(True)
         self.assertTrue(self.settings.value('sound/purr', type=bool))
         self.stroke_head(window)
@@ -331,13 +331,13 @@ class WindowTests(unittest.TestCase):
 
     def test_real_purr_starts_during_caricias_and_stops_when_leaving(self):
         window = self.make_window()
-        window.purr.effect.setMuted(True)
+        window.purr.output.setMuted(True)
         window.purr.set_enabled(True)
         self.stroke_head(window)
         window.pet_timer.start(3000)
-        self.wait_until(window.purr.effect.isPlaying)
+        self.wait_until(window.purr.is_playing)
         self.pet_event(window, outside=True)
-        self.assertFalse(window.purr.effect.isPlaying())
+        self.assertFalse(window.purr.is_playing())
         self.assertFalse(window.purr.wanted)
 
     def test_nap_after_30_seconds_lasts_five_and_then_waits_again(self):
