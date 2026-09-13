@@ -9,7 +9,9 @@ esquina, cambiar de modo y cerrar la mascota.
 ## Movimiento y tamaño
 
 El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
-Se ajusta a un máximo de 117 × 112 manteniendo la proporción. La ventana mide
+Las poses sentadas caben en 117 × 112; el paseo usa 152 × 112 para que el cuerpo
+no se encoja al ajustar una pose horizontal con cola larga. Los cuatro pasos
+comparten escala y línea del suelo, sin recortar patas ni cola. La ventana mide
 268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
 
 - Haz clic y arrastra el personaje: al soltar cae y rebota suavemente.
@@ -45,17 +47,19 @@ El ronroneo se detiene al pulsar un botón, salir de la cabeza o pasar 650 ms si
 el ratón. También al cambiar de aplicación, abrir el menú o cerrar la mascota.
 Mientras lo acaricias, se pausan la física y las travesuras, sin robar el foco.
 Puedes silenciarlo con clic derecho → **Ronroneo al acariciar**; se recuerda
-la preferencia y la pose sigue funcionando sin sonido. Es un WAV sintético local,
-original y sin red: no usa voz ni consume tokens. Si no hay dispositivo de audio,
+la preferencia y la pose sigue funcionando sin sonido. Ahora usa un ronroneo
+real grabado, en bucle local y sin red. No consume tokens. Si no hay dispositivo de audio,
 la interacción visual sigue disponible.
 
 ## Sonidos y diálogo temporal
 
-Los cuatro MP3 proporcionados se copian a `assets/audio/`; no dependen de la
+Los efectos se incluyen en `assets/audio/`; no dependen de la
 carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
 
-- `speech.mp3`: acompaña el diálogo en bucle mientras habla.
-- `end.mp3`: una vez al terminar de mostrar el diálogo.
+- `meow_1.wav`, `meow_2.wav`, `meow_3.wav`: tres maullidos distintos. Suena
+  solo uno al empezar cada diálogo, elegido al azar sin repetir el anterior.
+  No hay bucle de voz ni sonido de final de diálogo. Los antiguos `speech.mp3`
+  y `end.mp3` se retiraron del proyecto; sus originales externos no se modifican.
 - `caminar1.mp3`: bucle mientras camina, incluido el paseo llevando el cursor.
   Se detiene al parar, saltar, agarrarlo, acariciarlo o abrir el menú.
 - `explota.mp3`: una vez al cerrar. La ventana desaparece enseguida y el proceso
@@ -67,9 +71,27 @@ también para errores o avisos, y después queda invisible. Su espacio se reserv
 para que el gato no salte de posición. El campo de preguntas y el indicador de
 modo siguen disponibles. No hay globo ni sonido de bienvenida al iniciar.
 
-Clic derecho → **Sonidos del gato** permite silenciar estos cuatro efectos;
+Clic derecho → **Sonidos del gato** permite silenciar los maullidos y efectos;
 se recuerda la preferencia. El ronroneo tiene su propio interruptor.
-Interrumpir un diálogo con otro o cerrar no reproduce el sonido de fin anterior.
+Interrumpir un diálogo con otro o cerrar detiene el maullido anterior.
+
+## Siestas
+
+Tras 30 segundos sin actividad de ratón ni teclado en la sesión de Windows,
+el gato cierra los ojos, muestra «Zzz» y duerme 5 segundos. Después despierta.
+Puede volver a dormir tras otros 30 segundos; no entra en un ciclo inmediato.
+Si vuelves a usar el ratón o teclado, lo agarras o abres su menú, despierta antes.
+El ronroneo solo suena durante las caricias, no durante la siesta.
+
+No interrumpe una respuesta pendiente, un diálogo, caricias, un arrastre ni un
+salto. Detiene el paseo mientras duerme y conserva las preguntas escritas.
+Reutiliza la pose de ojos cerrados. Se consulta el tiempo desde la última entrada
+cada medio segundo; no se capturan imágenes ni se registra lo que escribes.
+En plataformas sin este detector de Windows, las siestas no se activan.
+
+Los maullidos y el ronroneo proceden de
+[Cat Purr & Meow, de Kerzoven (CC0)](https://opengameart.org/content/cat-purr-meow).
+Detalles y correspondencia de archivos en [audios locales](assets/audio/README.md).
 
 ## Travesuras automáticas
 
@@ -166,7 +188,7 @@ en `assets/siamese/`: `idle.png` (quieto), `talking.png` (mostrando una respuest
 `petting.png` (acariciado).
 Son PNG con transparencia real, sin el fondo cuadriculado de los bocetos.
 Se escalan una sola vez al iniciar y se reflejan al cambiar de dirección.
-El estado de hablar dura unos segundos y reproduce el efecto MP3 proporcionado;
+El estado de hablar dura unos segundos y comienza con uno de los tres maullidos;
 no sintetiza la respuesta como voz ni hace llamadas adicionales.
 
 Caminar usa cuatro fotogramas en bucle (120 ms cada uno), con perfil, tamaño y
@@ -188,6 +210,7 @@ Consulta [el diseño y sus prompts](assets/siamese/DESIGN.md) para ver su proced
 - `desktop_pet/autonomy.py`: paseos ocasionales, bromas locales y juego con el cursor.
 - `desktop_pet/purring.py`: reproducción local del ronroneo, sin bloquear la interfaz.
 - `desktop_pet/sounds.py`: efectos MP3, bucles y finalización del sonido al cerrar.
+- `desktop_pet/napping.py`: detección de inactividad y siestas de cinco segundos.
 - `desktop_pet/service.py`: conexión independiente de la interfaz y personalidad.
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QTransform
+from PyQt6.QtGui import QPainter, QPixmap, QTransform
 
 SPRITE_DIR = Path(__file__).resolve().parent.parent / "assets" / "siamese"
 SPRITE_STATES = ("idle", "talking", "falling", "walking", "petting")
@@ -64,8 +64,20 @@ class SpriteSet:
                 # Scale once at load, not on each physics tick. Keep alpha.
                 right = frame.scaled(117, 112, Qt.AspectRatioMode.KeepAspectRatio,
                                      Qt.TransformationMode.SmoothTransformation)
+                if state == "walking" and state not in self.missing:
+                    # A horizontal cat was shrunk by fitting its long tail into a square.
+                    # Enlarge every walk frame uniformly; discard only transparent top padding.
+                    right = QPixmap(152, 112)
+                    right.fill(Qt.GlobalColor.transparent)
+                    painter = QPainter(right)
+                    painter.drawPixmap(0, -38, frame.scaled(
+                        152, 152, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation))
+                    painter.end()
                 self.frames[state, 1, index] = right
                 self.frames[state, -1, index] = right.transformed(QTransform().scale(-1, 1))
 
     def pixmap(self, state: str, direction: int = 1, frame: int = 0) -> QPixmap:
+        if state == "sleeping":
+            state = "petting"
         return self.frames[state, -1 if direction < 0 else 1, frame % len(FRAME_FILES[state])]

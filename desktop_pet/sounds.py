@@ -1,12 +1,14 @@
-"""User-provided local MP3 effects. Playback never blocks the GUI thread."""
+"""Local meows and MP3 effects. Playback never blocks the GUI thread."""
 
 from pathlib import Path
+import random
 from PyQt6.QtCore import QObject, QTimer, QUrl, pyqtSignal
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 
 AUDIO_DIR = Path(__file__).resolve().parent.parent / "assets/audio"
-FILES = {"speech": "speech.mp3", "end": "end.mp3", "close": "explota.mp3",
-         "walk": "caminar1.mp3"}
+MEOWS = ("meow_1", "meow_2", "meow_3")
+FILES = {**{name: name + ".wav" for name in MEOWS},
+         "close": "explota.mp3", "walk": "caminar1.mp3"}
 
 
 class CatSounds(QObject):
@@ -17,6 +19,8 @@ class CatSounds(QObject):
         self.enabled = enabled
         self.walking = False
         self.speaking = False
+        self.last_meow = None
+        self.rng = random.Random()
         self.closing = False
         self.close_pending = False
         self.players = {}
@@ -27,7 +31,7 @@ class CatSounds(QObject):
             output.setVolume(.35)
             player = QMediaPlayer(self)
             player.setAudioOutput(output)
-            player.setLoops(QMediaPlayer.Loops.Infinite.value if name in ("walk", "speech") else 1)
+            player.setLoops(QMediaPlayer.Loops.Infinite.value if name == "walk" else 1)
             self.players[name] = player
             self.outputs[name] = output
         self.players["close"].mediaStatusChanged.connect(self._close_status)
@@ -48,17 +52,18 @@ class CatSounds(QObject):
         if self.closing:
             return
         self.speaking = True
-        self.players["end"].stop()
-        self.players["speech"].stop()
+        for name in MEOWS:
+            self.players[name].stop()
         if self.enabled:
-            self._play("speech")
+            self.last_meow = self.rng.choice([name for name in MEOWS if name != self.last_meow])
+            self._play(self.last_meow)
 
     def stop_speech(self, *, completed=False):
-        was_speaking = self.speaking
         self.speaking = False
-        self.players["speech"].stop()
-        if completed and was_speaking and self.enabled and not self.closing:
-            self._play("end")
+        # A one-shot meow may finish naturally; never start an end-of-dialogue sound.
+        if not completed:
+            for name in MEOWS:
+                self.players[name].stop()
 
     def set_walking(self, walking):
         walking = bool(walking and not self.closing)
@@ -80,8 +85,6 @@ class CatSounds(QObject):
         elif not self.closing:
             if self.walking:
                 self._play("walk")
-            if self.speaking:
-                self._play("speech")
 
     def begin_close(self):
         if self.closing:

@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
-from desktop_pet.sounds import AUDIO_DIR, FILES, CatSounds
+from desktop_pet.sounds import AUDIO_DIR, FILES, MEOWS, CatSounds
 
 
 class SoundTests(unittest.TestCase):
@@ -33,25 +33,39 @@ class SoundTests(unittest.TestCase):
 
     def test_correct_files_and_loop_modes_and_lazy_loading(self):
         sounds = self.make_sounds()
-        self.assertEqual(FILES, {"speech": "speech.mp3", "end": "end.mp3",
-                                "close": "explota.mp3", "walk": "caminar1.mp3"})
+        self.assertEqual(FILES, {"meow_1": "meow_1.wav", "meow_2": "meow_2.wav",
+                                "meow_3": "meow_3.wav", "close": "explota.mp3", "walk": "caminar1.mp3"})
         for name, player in sounds.players.items():
             self.assertTrue((AUDIO_DIR / FILES[name]).is_file())
-            player.setLoops.assert_called_once_with(-1 if name in ("speech", "walk") else 1)
+            player.setLoops.assert_called_once_with(-1 if name == "walk" else 1)
             player.setSource.assert_not_called()
         sounds.start_speech()
-        self.assertTrue(sounds.players["speech"].setSource.call_args.args[0].isLocalFile())
+        self.assertTrue(sounds.players[sounds.last_meow].setSource.call_args.args[0].isLocalFile())
 
-    def test_speech_end_is_once_and_interruptions_do_not_play_end(self):
+    def test_one_meow_at_start_no_end_sound_and_no_immediate_repeat(self):
         sounds = self.make_sounds()
         sounds.start_speech()
-        sounds.players["speech"].play.assert_called_once()
+        first = sounds.last_meow
+        sounds.players[first].play.assert_called_once()
         sounds.stop_speech(completed=True)
         sounds.stop_speech(completed=True)
-        sounds.players["end"].play.assert_called_once()
+        self.assertEqual(sum(p.play.call_count for p in sounds.players.values()), 1)
         sounds.start_speech()
+        self.assertNotEqual(sounds.last_meow, first)
         sounds.stop_speech()
-        sounds.players["end"].play.assert_called_once()
+        self.assertEqual(sum(p.play.call_count for p in sounds.players.values()), 2)
+        self.assertNotIn("end", sounds.players)
+
+    def test_all_three_meows_are_available_and_unmute_does_not_replay(self):
+        sounds = self.make_sounds()
+        with patch.object(sounds.rng, 'choice', side_effect=list(MEOWS)):
+            for name in MEOWS:
+                sounds.start_speech()
+                self.assertEqual(sounds.last_meow, name)
+        sounds.set_enabled(False)
+        sounds.set_enabled(True)
+        for name in MEOWS:
+            sounds.players[name].play.assert_called_once()
 
     def test_walk_does_not_restart_every_tick_and_mute_is_immediate(self):
         sounds = self.make_sounds()

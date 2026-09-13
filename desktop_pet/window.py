@@ -16,6 +16,7 @@ from desktop_pet.autonomy import CatAutonomy
 from desktop_pet.purring import PurrSound
 from desktop_pet.petting import HeadStrokes
 from desktop_pet.sounds import CatSounds
+from desktop_pet.napping import CatNaps
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -53,6 +54,8 @@ class PetWindow(QWidget):
         self.sounds = CatSounds(self, enabled=self.settings.value("sound/effects", True, type=bool))
         self.sounds.close_finished.connect(self._close_sound_finished)
         self.autonomy = None
+        self.sleeping = False
+        self.naps = None
         self._last_response_at = time.monotonic()
         self._drag_offset: QPoint | None = None
         self.petting = False
@@ -226,6 +229,7 @@ class PetWindow(QWidget):
         QApplication.instance().screenRemoved.connect(self._screen_changed)
         QApplication.instance().screenAdded.connect(self._screen_added)
         self.autonomy = CatAutonomy(self)
+        self.naps = CatNaps(self)
         QTimer.singleShot(0, self._start_motion)
 
     def _refresh_sprite(self) -> None:
@@ -241,6 +245,8 @@ class PetWindow(QWidget):
             state = "walking"
         if self.petting:
             state = "petting"
+        if self.sleeping:
+            state = "sleeping"
         now = time.monotonic()
         if state != self.sprite_state:
             self._sprite_state_started = now
@@ -269,6 +275,8 @@ class PetWindow(QWidget):
 
     @pyqtSlot(bool)
     def set_walking(self, enabled: bool, *, automatic: bool = False) -> None:
+        if enabled and not automatic and self.naps:
+            self.naps.wake()
         if not automatic and self.autonomy:
             self.autonomy.forget_walk()
             self.autonomy.finish_pounce(resume=False)
@@ -329,7 +337,7 @@ class PetWindow(QWidget):
 
     def _head_rect(self) -> QRect:
         # Normalized regions in the existing 512px sprites, mirrored with the cat.
-        x, y, width, height = ((.76, .37, .23, .25) if self.sprite_state == "walking"
+        x, y, width, height = ((.76, .16, .23, .34) if self.sprite_state == "walking"
                                else (.38, .04, .46, .34))
         if self.facing < 0:
             x = 1 - x - width
@@ -350,6 +358,8 @@ class PetWindow(QWidget):
             QTimer.singleShot(0, self._start_motion)
 
     def _hover_head(self, event) -> None:
+        if self.sleeping and self.naps:
+            self.naps.wake()
         if (event.buttons() != Qt.MouseButton.NoButton or self._closing or self.menu.isVisible()
                 or self._drag_offset is not None
                 or self.sprite_state == "falling"
@@ -391,6 +401,8 @@ class PetWindow(QWidget):
         self._refresh_sprite()
 
     def _pause_motion(self) -> None:
+        if self.naps:
+            self.naps.wake()
         self._stop_petting()
         if self.autonomy:
             self.autonomy.cancel()
@@ -399,7 +411,7 @@ class PetWindow(QWidget):
 
     def _start_motion(self) -> None:
         if (not self.physics_enabled or self._closing or not self.isVisible()
-                or self._drag_offset is not None or self.petting
+                or self._drag_offset is not None or self.petting or self.sleeping
                 or self.menu.isVisible() or self.input.hasFocus()
                 or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
                                        or self.autonomy.carrying))):
@@ -451,6 +463,8 @@ class PetWindow(QWidget):
 
     @pyqtSlot()
     def jump(self) -> None:
+        if self.naps:
+            self.naps.wake()
         if not self.physics_enabled or self._closing or self._drag_offset is not None:
             return
         if self.autonomy:
@@ -533,6 +547,8 @@ class PetWindow(QWidget):
         self._start_motion()
 
     def eventFilter(self, watched, event) -> bool:
+        if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.KeyPress) and self.naps:
+            self.naps.wake()
         if watched is getattr(self, "input", None):
             if event.type() == QEvent.Type.FocusIn:
                 self._stop_petting()
@@ -606,6 +622,8 @@ class PetWindow(QWidget):
     def show_response(self, text: str) -> None:
         if self._closing:
             return
+        if self.naps:
+            self.naps.wake()
         self._last_response_at = time.monotonic()
         self.bubble.setText(text)
         self.scroll.verticalScrollBar().setValue(0)
@@ -648,6 +666,8 @@ class PetWindow(QWidget):
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._closing:
             self._closing = True
+            if self.naps:
+                self.naps.close()
             self._stop_petting()
             if self.autonomy:
                 self.autonomy.close()

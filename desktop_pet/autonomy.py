@@ -130,7 +130,7 @@ class CatAutonomy:
 
     def busy(self):
         w = self.window
-        return (w._closing or not w.isVisible() or w._drag_offset is not None or w.petting
+        return (w._closing or not w.isVisible() or w._drag_offset is not None or w.petting or w.sleeping
                 or w.menu.isVisible() or w.input.hasFocus() or bool(w.input.text())
                 or w.bubble.hasSelectedText() or w.worker is not None
                 or mouse_button_down())
@@ -264,8 +264,7 @@ class CatAutonomy:
 
     def mouth_offset(self):
         w = self.window
-        return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * 43,
-                                          w.character.height() // 2 + 5)
+        return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * 65, 44)
 
     def carry_interrupted(self, cursor=None):
         if cursor is None:

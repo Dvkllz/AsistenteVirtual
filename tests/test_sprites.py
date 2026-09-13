@@ -41,7 +41,7 @@ class SpriteTests(unittest.TestCase):
         self.assertEqual(sprites.missing, [])
         for state in SPRITE_STATES:
             right, left = sprites.pixmap(state), sprites.pixmap(state, -1)
-            self.assertLessEqual(right.width(), 117)
+            self.assertLessEqual(right.width(), 152 if state == 'walking' else 117)
             self.assertLessEqual(right.height(), 112)
             self.assertEqual(right.cacheKey(), sprites.pixmap(state).cacheKey())
             self.assertNotEqual(right.cacheKey(), left.cacheKey())
@@ -52,6 +52,22 @@ class SpriteTests(unittest.TestCase):
             sprites = SpriteSet(Path(temp))
         self.assertEqual(sprites.missing, list(SPRITE_STATES))
         self.assertFalse(sprites.pixmap('idle').isNull())
+
+    def test_walk_uses_uniform_larger_scale_without_clipping_and_sleep_reuses_closed_eyes(self):
+        sprites = SpriteSet()
+        for index in range(4):
+            image = sprites.pixmap('walking', frame=index).toImage()
+            self.assertEqual((image.width(), image.height()), (152, 112))
+            for x in range(image.width()):
+                self.assertEqual(image.pixelColor(x, 0).alpha(), 0)
+                self.assertEqual(image.pixelColor(x, image.height() - 1).alpha(), 0)
+        self.assertEqual(sprites.pixmap('sleeping').cacheKey(), sprites.pixmap('petting').cacheKey())
+        def area(state):
+            image = sprites.pixmap(state).toImage()
+            return sum(image.pixelColor(x, y).alpha() > 128
+                       for x in range(image.width()) for y in range(image.height()))
+        self.assertGreater(area('walking'), area('idle') * .9)
+        self.assertLess(area('walking'), area('idle') * 1.3)
 
     def test_priority(self):
         flags = dict(dragging=False, airborne=False, speaking=False, walking=False)

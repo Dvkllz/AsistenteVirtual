@@ -4,7 +4,7 @@ from pathlib import Path
 from PyQt6.QtCore import QUrl
 from PyQt6.QtMultimedia import QSoundEffect
 
-PURR_PATH = Path(__file__).resolve().parent.parent / 'assets/audio/purr.wav'
+PURR_PATH = Path(__file__).resolve().parent.parent / 'assets/audio/purr_real.wav'
 
 
 class PurrSound:
@@ -13,7 +13,7 @@ class PurrSound:
         self.wanted = False
         self.effect = QSoundEffect(parent)
         self.effect.setLoopCount(QSoundEffect.Loop.Infinite.value)
-        self.effect.setVolume(.18)
+        self.effect.setVolume(.4)
         self.effect.statusChanged.connect(self._ready)
         self.effect.setSource(QUrl.fromLocalFile(str(PURR_PATH)))
 

@@ -33,6 +33,7 @@ class WindowTests(unittest.TestCase):
         self.settings.setValue('physics/enabled', False)
         self.settings.setValue('sound/purr', False)
         self.settings.setValue('sound/effects', False)
+        self.settings.setValue('nap/enabled', False)
         self.settings.setValue('autonomy/cursor_push', False)
         self.settings.setValue('autonomy/cursor_carry', False)
         self.cursor_guard = patch('desktop_pet.autonomy.QCursor.setPos',
@@ -321,6 +322,86 @@ class WindowTests(unittest.TestCase):
         self.assertFalse(window.purr.wanted)
         self.assertFalse(self.settings.value('sound/purr', type=bool))
         self.assertEqual(window.sprite_state, 'petting')
+
+    def nap_ready(self, window):
+        window.naps.enabled = True
+        window.naps.next_allowed = 0
+        window.naps.timer.stop()
+        window.setFocus()
+
+    def test_real_purr_starts_during_caricias_and_stops_when_leaving(self):
+        window = self.make_window()
+        window.purr.effect.setMuted(True)
+        window.purr.set_enabled(True)
+        self.stroke_head(window)
+        window.pet_timer.start(3000)
+        self.wait_until(window.purr.effect.isPlaying)
+        self.pet_event(window, outside=True)
+        self.assertFalse(window.purr.effect.isPlaying())
+        self.assertFalse(window.purr.wanted)
+
+    def test_nap_after_30_seconds_lasts_five_and_then_waits_again(self):
+        window = self.make_window()
+        self.nap_ready(window)
+        with patch('desktop_pet.napping.input_idle_seconds', return_value=29.9), \
+                patch('desktop_pet.napping.mouse_button_down', return_value=False):
+            window.naps.tick()
+        self.assertFalse(window.sleeping)
+        with patch('desktop_pet.napping.input_idle_seconds', return_value=30), \
+                patch('desktop_pet.napping.mouse_button_down', return_value=False):
+            window.naps.tick()
+            self.assertTrue(window.sleeping)
+            self.assertEqual(window.sprite_state, 'sleeping')
+            self.assertIn('Zzz', window.mode.text())
+            self.assertFalse(window.purr.wanted)
+            self.assertTrue(window.scroll.isHidden())
+            self.assertEqual(window.naps.wake_timer.interval(), 5000)
+            window.naps.wake_timer.start(20)
+            self.wait_until(lambda: not window.sleeping)
+            self.assertEqual(window.sprite_state, 'idle')
+            window.naps.tick()
+            self.assertFalse(window.sleeping)
+
+    def test_sleep_pauses_walking_and_mouse_or_keyboard_input_wakes(self):
+        window = self.make_window()
+        window.move(window.x(), window._bounds()[3])
+        window.set_physics_enabled(True)
+        window.set_walking(True)
+        self.nap_ready(window)
+        with patch('desktop_pet.napping.input_idle_seconds', return_value=31), \
+                patch('desktop_pet.napping.mouse_button_down', return_value=False):
+            window.naps.tick()
+        self.assertTrue(window.sleeping)
+        self.assertFalse(window.walking)
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertFalse(window.sounds.walking)
+        with patch('desktop_pet.napping.input_idle_seconds', return_value=.1):
+            window.naps.tick()
+        self.assertFalse(window.sleeping)
+        self.assertFalse(window.naps.wake_timer.isActive())
+
+    def test_sleep_never_interrupts_dialogue_or_caricias_and_close_stops_timers(self):
+        window = self.make_window()
+        self.nap_ready(window)
+        with patch('desktop_pet.napping.input_idle_seconds', return_value=40), \
+                patch('desktop_pet.napping.mouse_button_down', return_value=False):
+            window.show_response('Miau.')
+            window.naps.tick()
+            self.assertFalse(window.sleeping)
+            window._end_speaking()
+            self.stroke_head(window)
+            window.naps.tick()
+            self.assertFalse(window.sleeping)
+            window._stop_petting()
+            window.naps.tick()
+            self.assertTrue(window.sleeping)
+        QTest.mousePress(window.character, Qt.MouseButton.LeftButton)
+        self.assertFalse(window.sleeping)
+        self.assertIsNotNone(window._drag_offset)
+        QTest.mouseRelease(window.character, Qt.MouseButton.LeftButton)
+        window.close()
+        self.assertFalse(window.naps.timer.isActive())
+        self.assertFalse(window.naps.wake_timer.isActive())
 
     def test_curved_caricia_works_after_typing_and_preserves_question_focus(self):
         window = self.make_window()

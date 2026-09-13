@@ -10,8 +10,8 @@ class PurrTests(unittest.TestCase):
         with wave.open(str(PURR_PATH), 'rb') as audio:
             self.assertEqual(audio.getnchannels(), 1)
             self.assertEqual(audio.getsampwidth(), 2)
-            self.assertEqual(audio.getframerate(), 22050)
-            self.assertEqual(audio.getnframes(), 44100)
+            self.assertEqual(audio.getframerate(), 44100)
+            self.assertGreater(audio.getnframes(), 44100)
             self.assertNotEqual(set(audio.readframes(44100)), {0})
 
     def make_sound(self):
