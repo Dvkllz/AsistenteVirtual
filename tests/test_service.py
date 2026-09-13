@@ -55,7 +55,7 @@ class ServiceTests(unittest.TestCase):
                 'model': DEFAULT_MODEL, 'status': 'completed',
                 'output': [{'type': 'message', 'id': 'msg_test', 'role': 'assistant',
                             'status': 'completed', 'content': [
-                                {'type': 'output_text', 'text': 'Hola, humano.', 'annotations': []}
+                                {'type': 'output_text', 'text': 'Hola. Ya era hora.', 'annotations': []}
                             ]}],
             })
 
@@ -63,7 +63,7 @@ class ServiceTests(unittest.TestCase):
                                   http_client=httpx.Client(transport=httpx.MockTransport(respond)))
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-only-not-a-key', 'OPENAI_MODEL': ''}), \
                 patch('desktop_pet.service.openai.OpenAI', return_value=sdk_client) as factory:
-            self.assertEqual(answer_question(' Hola ', live=True), 'Hola, humano.')
+            self.assertEqual(answer_question(' Hola ', live=True), 'Hola. Ya era hora.')
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0].url.path, '/v1/responses')
         payload = json.loads(requests[0].content)
@@ -72,6 +72,8 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(payload['max_output_tokens'], MAX_OUTPUT_TOKENS)
         self.assertFalse(payload['store'])
         self.assertIn('sarcástico', payload['instructions'])
+        self.assertIn('sin vocativos ni apodos', payload['instructions'])
+        self.assertIn("nunca llames al usuario 'humano'", payload['instructions'])
         self.assertEqual(factory.call_args.kwargs['max_retries'], 0)
         self.assertEqual(factory.call_args.kwargs['timeout'], 20)
 

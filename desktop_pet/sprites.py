@@ -65,7 +65,7 @@ class SpriteSet:
                 # Scale once at load, not on each physics tick. Keep alpha.
                 right = frame.scaled(117, 112, Qt.AspectRatioMode.KeepAspectRatio,
                                      Qt.TransformationMode.SmoothTransformation)
-                if state in ("walking", "sleeping") and state not in self.missing:
+                if state == "walking" and state not in self.missing:
                     # A horizontal cat was shrunk by fitting its long tail into a square.
                     # Enlarge every walk frame uniformly; discard only transparent top padding.
                     right = QPixmap(152, 112)

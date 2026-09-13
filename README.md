@@ -9,7 +9,7 @@ esquina, cambiar de modo y cerrar la mascota.
 ## Movimiento y tamaño
 
 El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
-Las poses sentadas caben en 117 × 112; el paseo usa 152 × 112 para que el cuerpo
+Las poses sentadas y dormida caben en 117 × 112; el paseo usa 152 × 112 para que el cuerpo
 no se encoja al ajustar una pose horizontal con cola larga. Los cuatro pasos
 comparten escala y línea del suelo, sin recortar patas ni cola. La ventana mide
 268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
@@ -74,6 +74,8 @@ La lectura se calcula como 3 segundos para advertir el mensaje más 0,4 segundos
 por palabra: una respuesta de 45 palabras permanece 21 segundos.
 Mientras espera la API, solo cambia el indicador inferior; el maullido suena
 al llegar la respuesta, no también durante la espera.
+Al hablar cancela el paseo y las travesuras; no se puede iniciar otro paseo
+hasta terminar el diálogo. Si lo lanzas, completa la caída y luego queda quieto.
 
 Clic derecho → **Sonidos del gato** permite silenciar los maullidos y efectos;
 se recuerda la preferencia. El ronroneo tiene su propio interruptor.
@@ -198,7 +200,8 @@ envía una solicitud de texto al pulsar Enter (el dictado usa otra de transcripc
 facturación dependen de tu cuenta de la API.
 
 - Máximo 800 caracteres por pregunta y 120 tokens de salida por solicitud.
-- Respuestas breves en español, casi siempre sarcásticas; empatía sin sarcasmo ante temas sensibles.
+- Respuestas breves en español, casi siempre sarcásticas, sin llamar «humano» al usuario
+  ni usar apodos; empatía sin sarcasmo ante temas sensibles.
 - Sin historial: cada pregunta es independiente.
 - Sin reintentos automáticos ni llamadas al iniciar.
 - Solicitudes con `store=False`; la aplicación no guarda conversaciones.

@@ -14,8 +14,9 @@ del fondo cuadriculado mediante procesamiento local, autorizada por el usuario.
 - `sleeping.png`: acurrucado y dormido; [prompt y preparación](SLEEPING.md).
 
 Los seis PNG son RGBA de 512 × 512, con transparencia real. Se cargan y escalan
-una sola vez: poses sentadas en 117 × 112 píxeles lógicos (20 % menos de altura);
-paseo y sueño en 152 × 112, con escala corporal y línea del suelo compartidas.
+una sola vez: poses sentadas y sueño en 117 × 112 píxeles lógicos;
+solo el paseo usa 152 × 112. El sueño no recibe el aumento destinado a la cola
+extendida del paseo y conserva una superficie corporal similar al reposo.
 Reposo y diálogo usan una imagen; caminar y saltar usan cuatro fotogramas cada
 uno. Véase [animaciones y prompts](animation/ANIMATION.md).
 

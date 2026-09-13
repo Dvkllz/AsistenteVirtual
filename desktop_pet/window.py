@@ -314,7 +314,8 @@ class PetWindow(QWidget):
             self.autonomy.finish_pounce(resume=False)
         if enabled == self.walking:
             return
-        if enabled and (not self.physics_enabled or self._closing or self._drag_offset is not None):
+        if enabled and (not self.physics_enabled or self._closing or self._drag_offset is not None
+                        or self.talking_timer.isActive()):
             self.walk_action.setChecked(False)
             return
         self.walking = enabled
@@ -521,6 +522,10 @@ class PetWindow(QWidget):
         self._refresh_sprite()
 
     def _start_motion(self) -> None:
+        if (self.talking_timer.isActive() and self.y() >= self._bounds()[3]
+                and abs(self.body.vy) <= 100 and self._drag_offset is None):
+            self._stop_motion()
+            return
         if (not self.physics_enabled or self._closing or not self.isVisible()
                 or self._drag_offset is not None or self.petting or self.sleeping or self.voice_busy
                 or self.menu.isVisible() or self.input.hasFocus()
@@ -538,6 +543,11 @@ class PetWindow(QWidget):
     def _tick_motion(self) -> None:
         now = time.monotonic()
         bounds = self._bounds()
+        if self.talking_timer.isActive():
+            self._cancel_walk()
+            if self.y() >= bounds[3] and abs(self.body.vy) <= 100:
+                self._stop_motion()
+                return
         if self.walking and bounds[0] == bounds[2]:
             self._cancel_walk()
         if self.walking and self.body.y >= bounds[3] - 1 and self.body.vy >= 0:
@@ -739,6 +749,13 @@ class PetWindow(QWidget):
         if self.naps:
             self.naps.wake()
         self._last_response_at = time.monotonic()
+        if self.autonomy:
+            self.autonomy.cancel()
+        self._cancel_walk()
+        # Stop grounded sliding immediately; a thrown cat still completes its fall.
+        if not (self.motion_timer.isActive()
+                and (self.y() < self._bounds()[3] - 1 or abs(self.body.vy) > 100)):
+            self._stop_motion()
         self.bubble.setText(text)
         self.scroll.verticalScrollBar().setValue(0)
         self._dialog_active = True

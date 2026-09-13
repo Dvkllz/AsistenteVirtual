@@ -41,7 +41,7 @@ class SpriteTests(unittest.TestCase):
         self.assertEqual(sprites.missing, [])
         for state in SPRITE_STATES:
             right, left = sprites.pixmap(state), sprites.pixmap(state, -1)
-            self.assertLessEqual(right.width(), 152 if state in ('walking', 'sleeping') else 117)
+            self.assertLessEqual(right.width(), 152 if state == 'walking' else 117)
             self.assertLessEqual(right.height(), 112)
             self.assertEqual(right.cacheKey(), sprites.pixmap(state).cacheKey())
             self.assertNotEqual(right.cacheKey(), left.cacheKey())
@@ -68,6 +68,15 @@ class SpriteTests(unittest.TestCase):
                        for x in range(image.width()) for y in range(image.height()))
         self.assertGreater(area('walking'), area('idle') * .9)
         self.assertLess(area('walking'), area('idle') * 1.3)
+        self.assertGreater(area('sleeping'), area('idle') * .85)
+        self.assertLess(area('sleeping'), area('idle') * 1.15)
+        # All poses share the same floor despite differing aspect ratios.
+        def floor(state):
+            image = sprites.pixmap(state).toImage()
+            return max(y for y in range(image.height())
+                       if any(image.pixelColor(x, y).alpha() > 128
+                              for x in range(image.width())))
+        self.assertLessEqual(abs(floor('sleeping') - floor('idle')), 1)
 
     def test_priority(self):
         flags = dict(dragging=False, airborne=False, speaking=False, walking=False)

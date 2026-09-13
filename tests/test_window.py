@@ -487,6 +487,68 @@ class WindowTests(unittest.TestCase):
         window.jump()
         self.assertEqual(window.sprite_state, 'falling')
 
+    def test_dialogue_cancels_an_existing_walk_without_seated_sliding(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.move(window.x(), window._bounds()[3])
+        window.set_walking(True)
+        window.body.vx = 72
+        window.autonomy.auto_walking = True
+        window.autonomy.walk_timer.start(5000)
+        window.show_response('Estoy trabajando mucho en no hacer nada.')
+        position = window.pos()
+        self.assertEqual(window.sprite_state, 'talking')
+        self.assertFalse(window.walking)
+        self.assertFalse(window.walk_action.isChecked())
+        self.assertFalse(window.autonomy.auto_walking)
+        self.assertFalse(window.autonomy.walk_timer.isActive())
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertFalse(window.sounds.walking)
+        self.assertEqual(window.body.vx, 0)
+        window._start_motion()  # Queued focus/menu callbacks must not restart sliding.
+        QTest.qWait(50)
+        self.assertEqual(window.pos(), position)
+        self.assertFalse(window.motion_timer.isActive())
+
+    def test_cannot_start_manual_or_automatic_walk_during_dialogue(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        window.move(window.x(), window._bounds()[3])
+        window.setFocus()
+        window.show_response('Ahora me toca hablar.')
+        for automatic in (False, True):
+            window.set_walking(True, automatic=automatic)
+            self.assertFalse(window.walking)
+            self.assertFalse(window.walk_action.isChecked())
+            self.assertEqual(window.sprite_state, 'talking')
+        self.assertTrue(window.autonomy.busy())
+        window._end_speaking()
+        window.set_walking(True)
+        self.assertTrue(window.walking)
+        self.assertEqual(window.sprite_state, 'walking')
+
+    def test_dialogue_does_not_suspend_a_thrown_cat_in_midair(self):
+        window = self.make_window()
+        window.set_physics_enabled(True)
+        bottom = window._bounds()[3]
+        window.move(window.x(), bottom - 100)
+        window.setFocus()
+        window.body.vx, window.body.vy = 180, 200
+        window._start_motion()
+        window.show_response('La gravedad tampoco respeta mis descansos.')
+        self.assertTrue(window.motion_timer.isActive())
+        self.assertEqual(window.sprite_state, 'falling')
+        self.assertEqual((window.body.vx, window.body.vy), (180, 200))
+        for _ in range(120):
+            if not window.motion_timer.isActive():
+                break
+            window._last_tick = time.monotonic() - .05
+            window._tick_motion()
+        self.assertFalse(window.motion_timer.isActive())
+        self.assertEqual(window.y(), bottom)
+        self.assertEqual(window.sprite_state, 'talking')
+        self.assertEqual(window.body.vx, 0)
+
     def test_walk_reverses_at_both_edges_and_stays_in_bounds(self):
         window = self.make_window()
         window.set_physics_enabled(True)

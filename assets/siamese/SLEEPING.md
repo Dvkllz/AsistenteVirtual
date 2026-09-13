@@ -6,7 +6,9 @@ referencia de identidad. No utiliza la clave API del proyecto.
 Se conserva el siamés realista, sin rasgos antropomórficos, en una pose acurrucada
 con ojos cerrados. El recorte usa el proceso local ya autorizado:
 `scripts/prepare_cat_sprite.py`; no modifica las otras poses.
-Se muestra a la misma escala que el cuerpo horizontal del paseo, con suelo común.
+Se muestra en el marco base de 117 × 112, sin el aumento aplicado al paseo:
+el cuerpo acurrucado ya llena su encuadre. Conserva el mismo suelo y una
+superficie visible similar a la pose sentada; no crece al dormirse.
 
 ## Prompt final
 
