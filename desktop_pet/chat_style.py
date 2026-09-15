@@ -2,10 +2,49 @@
 from functools import lru_cache
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFontDatabase, QIcon, QPainter, QPixmap
+from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QColor, QFontDatabase, QIcon, QPainter, QPixmap, QPolygon
+from PyQt6.QtWidgets import QWidget
 
 FONT_PATH = Path(__file__).resolve().parent.parent / "assets/fonts/PixelifySans.ttf"
+
+
+class DialogueFrame(QWidget):
+    """Pixel-cut double frame; its tail and borders stay put while text scrolls."""
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setPen(Qt.PenStyle.NoPen)
+        width, bottom = self.width(), self.height() - 10
+        center = width // 2
+
+        def panel(inset, color):
+            left, top = inset, inset
+            right, base = width - inset, bottom - inset
+            painter.setBrush(QColor(color))
+            painter.drawPolygon(QPolygon([
+                QPoint(left + 5, top), QPoint(right - 5, top),
+                QPoint(right - 5, top + 3), QPoint(right, top + 3),
+                QPoint(right, base - 3), QPoint(right - 5, base - 3),
+                QPoint(right - 5, base), QPoint(left + 5, base),
+                QPoint(left + 5, base - 3), QPoint(left, base - 3),
+                QPoint(left, top + 3), QPoint(left + 5, top + 3),
+            ]))
+
+        # Offset layers give a dark outline, a bright rim and an inset lip.
+        panel(0, "#101910")
+        panel(2, "#b6c98d")
+        panel(4, "#526644")
+        panel(6, "#18211c")
+        painter.fillRect(11, 7, width - 22, 1, QColor("#768b5f"))
+        painter.fillRect(11, bottom - 7, width - 22, 1, QColor("#0d150f"))
+        painter.fillRect(center - 9, bottom - 4, 18, 8, QColor("#101910"))
+        painter.fillRect(center - 5, bottom + 4, 10, 4, QColor("#101910"))
+        painter.fillRect(center - 7, bottom - 4, 14, 6, QColor("#b6c98d"))
+        painter.fillRect(center - 3, bottom + 2, 6, 4, QColor("#b6c98d"))
+        painter.fillRect(center - 5, bottom - 5, 10, 5, QColor("#18211c"))
+        painter.fillRect(center - 2, bottom, 4, 3, QColor("#526644"))
+        painter.end()
 
 
 @lru_cache(maxsize=1)

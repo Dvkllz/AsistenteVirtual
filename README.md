@@ -12,7 +12,7 @@ El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.
 Las poses sentadas y dormida caben en 117 × 112; el paseo usa 152 × 112 para que el cuerpo
 no se encoja al ajustar una pose horizontal con cola larga. Los cuatro pasos
 comparten escala y línea del suelo, sin recortar patas ni cola. La ventana mide
-268 × 332; el texto conserva su tamaño legible, no se reduce un 20 %.
+268 × 304; el texto conserva su tamaño legible, no se reduce un 20 %.
 
 - Haz clic y arrastra el personaje: al soltar cae y rebota suavemente.
 - Suéltalo mientras lo mueves para lanzarlo; mantenerlo quieto antes de soltarlo
@@ -55,7 +55,7 @@ la interacción visual sigue disponible.
 
 ### Interfaz pixelada
 
-La entrada y el globo usan **Pixelify Sans**, una fuente libre de estilo pixelado
+La entrada, el globo y los menús usan **Pixelify Sans**, una fuente libre de estilo pixelado
 (inspiración retro/Minecraft, no su tipografía oficial). Se incluye con su
 [licencia](assets/fonts/OFL.txt), sin instalación en Windows ni descarga al iniciar.
 Soporta acentos, ñ y signos españoles; si falta, utiliza Consolas.
@@ -64,7 +64,15 @@ La caja de escritura tiene bordes rectos con relieve y resalte verde al recibir
 el foco. El botón con flecha envía igual que **Enter**, y se desactiva si el texto
 está vacío o hay una solicitud en curso. El micrófono tiene un icono pixelado que
 cambia a un cuadrado rojo al grabar. Se conservan los avisos de consumo y accesibilidad.
-El tamaño del gato y de la ventana no cambia.
+El tamaño del gato no cambia. Se elimina la fila inferior reservada para el modo:
+la ventana es 28 píxeles más baja y acaba con un margen de solo 8 píxeles bajo
+la entrada. Los avisos temporales aparecen sobre el gato, en el espacio del diálogo,
+sin mover al personaje ni los controles.
+
+El globo tiene doble marco con relieve, esquinas escalonadas y una pequeña punta
+pixelada. El borde permanece fijo al desplazar respuestas largas; todo el marco
+desaparece al terminar el diálogo. El espacio transparente sobre el gato se conserva
+para que hablar no cambie su posición.
 
 Los efectos se incluyen en `assets/audio/`; no dependen de la
 carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:

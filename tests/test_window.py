@@ -100,6 +100,57 @@ class WindowTests(unittest.TestCase):
         window.input.setText('Otra pregunta')
         self.assertTrue(window.send_button.isEnabled())
 
+    def test_pixel_font_applies_to_context_menu_and_submenu(self):
+        window = self.make_window()
+        for menu in (window.menu, window.response_menu):
+            menu.ensurePolished()
+            self.assertEqual(QFontInfo(menu.font()).family(), 'Pixelify Sans')
+            self.assertEqual(menu.font().pixelSize(), 16)
+
+    def test_no_footer_gap_and_status_reuses_dialogue_space(self):
+        window = self.make_window()
+        character, composer = window.character.geometry(), window.composer.geometry()
+        self.assertEqual(window.height() - composer.bottom() - 1, 8)
+        self.assertEqual(window.layout().count(), 3)
+        window._show_status('GRABANDO · máx. 15 s · Esc cancela')
+        self.app.processEvents()
+        self.assertTrue(window.mode.isVisible())
+        self.assertLess(window.mode.geometry().bottom(), character.top())
+        self.assertGreaterEqual(window.mode.width(), window.mode.sizeHint().width())
+        window.show_response('Claro, otra pregunta. Mi siesta puede esperar.')
+        self.app.processEvents()
+        self.assertTrue(window.mode.isHidden())
+        self.assertEqual(window.character.geometry(), character)
+        self.assertEqual(window.composer.geometry(), composer)
+        window._end_speaking()
+        self.app.processEvents()
+        self.assertTrue(window.dialogue_frame.isHidden())
+        self.assertEqual(window.composer.geometry(), composer)
+
+    def test_dialogue_frame_has_transparent_corners_tail_and_fixed_scroll_border(self):
+        window = self.make_window()
+        self.assertTrue(window.dialogue_frame.isHidden())
+        window.show_response('Una respuesta sarcástica. ' * 80)
+        self.app.processEvents()
+        frame = window.dialogue_frame
+        # Child-only grabs fill the palette background; test the actual
+        # transparent top-level composition shown on the desktop instead.
+        image = window.grab().toImage().copy(
+            round(frame.x() * window.devicePixelRatioF()),
+            round(frame.y() * window.devicePixelRatioF()),
+            round(frame.width() * window.devicePixelRatioF()),
+            round(frame.height() * window.devicePixelRatioF()))
+        image = image.scaled(frame.size())
+        self.assertEqual(image.pixelColor(0, 0).alpha(), 0)
+        self.assertGreater(image.pixelColor(frame.width() // 2, frame.height() - 5).alpha(), 0)
+        self.assertEqual(image.pixelColor(20, 2).name(), '#b6c98d')
+        self.assertGreater(window.scroll.verticalScrollBar().maximum(), 0)
+        window.scroll.verticalScrollBar().setValue(window.scroll.verticalScrollBar().maximum())
+        self.app.processEvents()
+        scrolled = frame.grab().toImage().scaled(frame.size())
+        self.assertEqual(scrolled.pixelColor(20, 2), image.pixelColor(20, 2))
+        self.assertTrue(frame.isVisible())
+
     def test_pixel_composer_focus_and_microphone_recording_icon(self):
         window = self.make_window()
         window._composer_focus(True)
@@ -726,7 +777,7 @@ class WindowTests(unittest.TestCase):
 
     def test_smaller_character_keeps_text_readable(self):
         window = self.make_window()
-        self.assertEqual((window.width(), window.height()), (268, 332))
+        self.assertEqual((window.width(), window.height()), (268, 304))
         self.assertEqual(window.character.pixmap().height(), 112)
         self.assertGreaterEqual(window.input.height(), 35)
 

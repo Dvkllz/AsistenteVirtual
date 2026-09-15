@@ -18,7 +18,7 @@ from desktop_pet.petting import HeadStrokes
 from desktop_pet.sounds import CatSounds
 from desktop_pet.napping import CatNaps
 from desktop_pet.voice import Microphone, transcribe_audio
-from desktop_pet.chat_style import pixel_font_family, pixel_icon
+from desktop_pet.chat_style import DialogueFrame, pixel_font_family, pixel_icon
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -108,14 +108,13 @@ class PetWindow(QWidget):
         self.setWindowTitle("Mascota virtual")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(268, 332)
+        self.setFixedSize(268, 304)
         self.setStyleSheet("""
             QWidget { font-family: 'Segoe UI'; font-size: 13px; }
             QLabel#bubble {
                 font-family: '__PIXEL_FONT__'; font-size: 16px;
-                background: #1c2523; color: #edf2df; border: 2px solid #596653;
-                border-bottom-color: #111912; border-right-color: #111912;
-                border-radius: 0px; padding: 9px;
+                background: transparent; color: #edf2df; border: none;
+                padding: 2px 4px;
             }
             QWidget#composer {
                 background: #18211c; border: 2px solid #63705a;
@@ -148,10 +147,14 @@ class PetWindow(QWidget):
                 background: #253024; border-color: #3e493b;
             }
             QLabel#mode {
+                font-family: '__PIXEL_FONT__';
                 color: #c5d4bc; background: #18211c; border-radius: 0px;
                 border-left: 3px solid #7ba95c; padding: 3px 7px; font-size: 11px;
             }
-            QMenu { background: #202536; color: #f3f5fc; border: 1px solid #46516b; padding: 5px; }
+            QMenu {
+                font-family: '__PIXEL_FONT__'; font-size: 16px;
+                background: #202536; color: #f3f5fc; border: 1px solid #46516b; padding: 5px;
+            }
             QMenu::item { padding: 7px 20px; }
             QMenu::item:selected { background: #394660; }
             QScrollBar:vertical { background: transparent; width: 6px; }
@@ -176,13 +179,19 @@ class PetWindow(QWidget):
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setStyleSheet("QScrollArea { background: transparent; }")
         self.scroll.viewport().setAutoFillBackground(False)
-        self.scroll.setFixedHeight(118)
-        policy = self.scroll.sizePolicy()
+        self.dialogue_frame = DialogueFrame()
+        self.dialogue_frame.setFixedHeight(118)
+        dialogue_layout = QVBoxLayout(self.dialogue_frame)
+        dialogue_layout.setContentsMargins(9, 9, 9, 19)
+        dialogue_layout.setSpacing(0)
+        dialogue_layout.addWidget(self.scroll)
+        policy = self.dialogue_frame.sizePolicy()
         policy.setRetainSizeWhenHidden(True)
-        self.scroll.setSizePolicy(policy)
+        self.dialogue_frame.setSizePolicy(policy)
         self.scroll.setWidget(self.bubble)
-        layout.addWidget(self.scroll)
+        layout.addWidget(self.dialogue_frame)
         self.scroll.hide()
+        self.dialogue_frame.hide()
 
         self.character = QLabel()
         self.character.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -239,14 +248,12 @@ class PetWindow(QWidget):
         layout.addWidget(self.composer)
         self.cancel_voice = QShortcut(QKeySequence("Escape"), self)
         self.cancel_voice.activated.connect(self.microphone.cancel)
-        self.mode = QLabel()
+        # Temporary notices reuse the hidden dialogue area, not a footer row.
+        self.mode = QLabel(self)
         self.mode.setObjectName("mode")
         self.mode.setAccessibleName("Estado temporal")
-        self.mode.setFixedHeight(22)
-        policy = self.mode.sizePolicy()
-        policy.setRetainSizeWhenHidden(True)
-        self.mode.setSizePolicy(policy)
-        layout.addWidget(self.mode, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.mode.setGeometry(8, 100, 252, 22)
+        self.mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.mode.hide()
 
         self.menu = QMenu(self)
@@ -419,6 +426,7 @@ class PetWindow(QWidget):
     def _show_status(self, text):
         self.mode.setText(text)
         self.mode.show()
+        self.mode.raise_()
 
     def _sync_send_button(self):
         self.send_button.setEnabled(bool(self.input.text().strip()) and self.input.isEnabled()
@@ -510,6 +518,7 @@ class PetWindow(QWidget):
     def _end_speaking(self, *, completed: bool = False) -> None:
         self.talking_timer.stop()
         self.scroll.hide()
+        self.dialogue_frame.hide()
         self.sounds.stop_speech(completed=completed and self._dialog_active)
         self._dialog_active = False
         self._refresh_sprite()
@@ -840,8 +849,10 @@ class PetWindow(QWidget):
                 and (self.y() < self._bounds()[3] - 1 or abs(self.body.vy) > 100)):
             self._stop_motion()
         self.bubble.setText(text)
+        self._restore_mode_label()
         self.scroll.verticalScrollBar().setValue(0)
         self._dialog_active = True
+        self.dialogue_frame.show()
         self.scroll.show()
         self.talking_timer.start(reading_time_ms(text))
         self.sounds.start_speech()
