@@ -3,7 +3,7 @@
 from collections.abc import Callable
 import time
 
-from PyQt6.QtCore import QEvent, QPoint, QRect, QSettings, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QPoint, QRect, QSettings, QSize, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QScrollArea, QVBoxLayout, QWidget,
@@ -18,6 +18,7 @@ from desktop_pet.petting import HeadStrokes
 from desktop_pet.sounds import CatSounds
 from desktop_pet.napping import CatNaps
 from desktop_pet.voice import Microphone, transcribe_audio
+from desktop_pet.chat_style import pixel_font_family, pixel_icon
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -104,25 +105,44 @@ class PetWindow(QWidget):
         self.setStyleSheet("""
             QWidget { font-family: 'Segoe UI'; font-size: 13px; }
             QLabel#bubble {
-                background: #202536; color: #f3f5fc; border: 1px solid #404961;
-                border-radius: 14px; padding: 11px;
+                font-family: '__PIXEL_FONT__'; font-size: 16px;
+                background: #1c2523; color: #edf2df; border: 2px solid #596653;
+                border-bottom-color: #111912; border-right-color: #111912;
+                border-radius: 0px; padding: 9px;
             }
-            QLineEdit {
-                background: #202536; color: #f3f5fc; border: 1px solid #46516b;
-                border-radius: 13px; padding: 10px 12px; selection-background-color: #526d93;
+            QWidget#composer {
+                background: #18211c; border: 2px solid #63705a;
+                border-bottom-color: #0c130d; border-right-color: #0c130d;
             }
-            QLineEdit:focus { border: 1px solid #8fdac5; }
-            QLineEdit:disabled { color: #a5afc5; }
-            QPushButton#microphone {
-                background: #202536; color: #f3f5fc; border: 1px solid #46516b;
-                border-radius: 12px; font-size: 19px;
+            QWidget#composer[editing="true"] {
+                border-color: #a2d179; border-bottom-color: #507144; border-right-color: #507144;
             }
-            QPushButton#microphone:checked { background: #933d4e; border-color: #ffadb6; }
-            QPushButton#microphone:disabled { color: #778096; }
-            QPushButton#microphone:hover { border-color: #8fdac5; }
+            QLineEdit#question {
+                font-family: '__PIXEL_FONT__'; font-size: 16px;
+                background: transparent; color: #edf2df; border: none;
+                border-radius: 0px; padding: 3px 4px;
+                selection-background-color: #67894d; selection-color: #ffffff;
+                placeholder-text-color: #a7b79b;
+            }
+            QLineEdit#question:disabled { color: #788675; }
+            QPushButton#microphone, QPushButton#send {
+                background: #354332; border: 2px solid #76846a;
+                border-bottom-color: #142018; border-right-color: #142018;
+                border-radius: 0px; padding: 0px;
+            }
+            QPushButton#send { background: #4b6b37; border-top-color: #9fbd7d; }
+            QPushButton#microphone:hover, QPushButton#send:hover { background: #587347; }
+            QPushButton#microphone:focus, QPushButton#send:focus { border-color: #c1e895; }
+            QPushButton#microphone:pressed, QPushButton#send:pressed {
+                background: #293b26; border-top-color: #111b12; border-left-color: #111b12;
+            }
+            QPushButton#microphone:checked { background: #8a3b40; border-color: #e49486; }
+            QPushButton#microphone:disabled, QPushButton#send:disabled {
+                background: #253024; border-color: #3e493b;
+            }
             QLabel#mode {
-                color: #d9e3f2; background: #202536; border-radius: 8px;
-                padding: 3px 9px; font-size: 11px;
+                color: #c5d4bc; background: #18211c; border-radius: 0px;
+                border-left: 3px solid #7ba95c; padding: 3px 7px; font-size: 11px;
             }
             QMenu { background: #202536; color: #f3f5fc; border: 1px solid #46516b; padding: 5px; }
             QMenu::item { padding: 7px 20px; }
@@ -130,7 +150,7 @@ class PetWindow(QWidget):
             QScrollBar:vertical { background: transparent; width: 6px; }
             QScrollBar::handle:vertical { background: #687891; border-radius: 3px; min-height: 20px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-        """)
+        """.replace("__PIXEL_FONT__", pixel_font_family()))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -169,24 +189,47 @@ class PetWindow(QWidget):
         layout.addWidget(self.character)
 
         self.input = QLineEdit()
+        self.input.setObjectName("question")
+        self.input.setMinimumHeight(36)
+        self.input.setMinimumWidth(0)
         self.input.setMaxLength(MAX_QUESTION_CHARS)
-        self.input.setPlaceholderText("Pregúntame algo…  ↵")
+        self.input.setPlaceholderText("Escribe aquí…")
         self.input.setAccessibleName("Pregunta; Enter para enviar")
         self.input.returnPressed.connect(self.submit)
         self.input.installEventFilter(self)
-        input_row = QHBoxLayout()
-        input_row.setSpacing(5)
+        self.composer = QWidget()
+        self.composer.setObjectName("composer")
+        self.composer.setProperty("editing", False)
+        self.composer.setFixedHeight(46)
+        input_row = QHBoxLayout(self.composer)
+        input_row.setContentsMargins(5, 3, 5, 3)
+        input_row.setSpacing(4)
         input_row.addWidget(self.input, 1)
-        self.mic_button = QPushButton("🎙")
+        self.mic_button = QPushButton()
         self.mic_button.setObjectName("microphone")
+        self.mic_button.setIcon(pixel_icon("microphone"))
+        self.mic_button.setIconSize(QSize(24, 24))
+        self.mic_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mic_button.setCheckable(True)
-        self.mic_button.setFixedSize(38, 39)
+        self.mic_button.setFixedSize(32, 36)
         self.mic_button.setAccessibleName("Grabar pregunta por voz")
         self.mic_button.setToolTip("Grabar hasta 15 s y enviar audio a OpenAI (consume créditos).\n"
                                    "Vuelve a pulsar para transcribir; Escape cancela sin enviar.")
         self.mic_button.clicked.connect(self._toggle_microphone)
         input_row.addWidget(self.mic_button)
-        layout.addLayout(input_row)
+        self.send_button = QPushButton()
+        self.send_button.setObjectName("send")
+        self.send_button.setIcon(pixel_icon("send"))
+        self.send_button.setIconSize(QSize(24, 24))
+        self.send_button.setFixedSize(32, 36)
+        self.send_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.send_button.setAccessibleName("Enviar pregunta")
+        self.send_button.setToolTip("Enviar pregunta · Enter (en modo OpenAI consume créditos)")
+        self.send_button.setEnabled(False)
+        self.send_button.clicked.connect(self.submit)
+        self.input.textChanged.connect(self._sync_send_button)
+        input_row.addWidget(self.send_button)
+        layout.addWidget(self.composer)
         self.cancel_voice = QShortcut(QKeySequence("Escape"), self)
         self.cancel_voice.activated.connect(self.microphone.cancel)
         self.mode = QLabel()
@@ -358,18 +401,28 @@ class PetWindow(QWidget):
     def _restore_mode_label(self):
         self.mode.setText("OPENAI · consume tokens" if self.live else "PRUEBA LOCAL · sin consumo")
 
+    def _sync_send_button(self):
+        self.send_button.setEnabled(bool(self.input.text().strip()) and self.input.isEnabled()
+                                    and not self.voice_busy and self.worker is None and not self._closing)
+
+    def _composer_focus(self, focused):
+        self.composer.setProperty("editing", focused)
+        self.composer.style().unpolish(self.composer)
+        self.composer.style().polish(self.composer)
+        self.composer.update()
+
     def _voice_controls(self):
         busy = self.voice_busy or self.worker is not None
         self.input.setEnabled(not busy)
         self.demo_action.setEnabled(not busy)
         self.live_action.setEnabled(not busy)
         self.mic_button.setEnabled(self.worker is None and self.voice_worker is None)
+        self._sync_send_button()
 
     def _voice_changed(self, recording):
         if self._closing:
             return
         self.mic_button.setChecked(recording)
-        self.mic_button.setText("■" if recording else "🎙")
         self.mic_button.setAccessibleName("Detener y transcribir" if recording else "Grabar pregunta por voz")
         if recording:
             self.mode.setText("GRABANDO · máx. 15 s · Esc cancela")
@@ -672,12 +725,14 @@ class PetWindow(QWidget):
             self.naps.wake()
         if watched is getattr(self, "input", None):
             if event.type() == QEvent.Type.FocusIn:
+                self._composer_focus(True)
                 self._stop_petting()
                 if self.autonomy:
                     self.autonomy.cancel()
                 self._cancel_walk()
                 self._stop_motion()
             elif event.type() == QEvent.Type.FocusOut:
+                self._composer_focus(False)
                 QTimer.singleShot(0, self._start_motion)
         if watched is self.character:
             if event.type() == QEvent.Type.MouseButtonPress:
@@ -731,6 +786,7 @@ class PetWindow(QWidget):
         self._cancel_walk()
         self._end_speaking()
         self.input.setEnabled(False)
+        self.send_button.setEnabled(False)
         self.mode.setText("PENSANDO · espera…")
         self.mic_button.setEnabled(False)
         responder = self._custom_responder or (lambda value: answer_question(value, live=self.live))

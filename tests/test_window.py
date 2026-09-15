@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PyQt6.QtCore import QEvent, QPointF, QSettings, Qt, QTimer
-from PyQt6.QtGui import QImage, QMouseEvent
+from PyQt6.QtGui import QFontInfo, QIcon, QImage, QMouseEvent, QRawFont
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
@@ -63,6 +63,59 @@ class WindowTests(unittest.TestCase):
         while not predicate() and time.monotonic() < deadline:
             QTest.qWait(10)
         self.assertTrue(predicate(), 'Timed out waiting for UI state')
+
+    def test_pixel_font_spanish_glyphs_and_compact_composer(self):
+        window = self.make_window()
+        self.assertEqual(QFontInfo(window.input.font()).family(), 'Pixelify Sans')
+        self.assertEqual(QFontInfo(window.bubble.font()).family(), 'Pixelify Sans')
+        font = QRawFont.fromFont(window.input.font())
+        for character in 'áéíóúñü¿¡':
+            self.assertTrue(font.supportsCharacter(ord(character)), character)
+        self.assertGreaterEqual(window.input.width(), 155)
+        self.assertGreaterEqual(window.input.height(), 35)
+        self.assertEqual(window.composer.height(), 46)
+        self.assertLessEqual(window.composer.width(), window.width() - 16)
+        self.assertTrue(window.composer.rect().contains(window.send_button.geometry()))
+        self.assertTrue(window.composer.rect().contains(window.mic_button.geometry()))
+
+    def test_pixel_send_button_blocks_blank_and_duplicate_requests(self):
+        gate, calls = threading.Event(), []
+        def respond(question):
+            calls.append(question)
+            gate.wait(1)
+            return 'Listo.'
+        window = self.make_window(responder=respond)
+        self.assertFalse(window.send_button.isEnabled())
+        window.input.setText('  ')
+        self.assertFalse(window.send_button.isEnabled())
+        window.input.setText('¿Una siesta?')
+        self.assertTrue(window.send_button.isEnabled())
+        window.send_button.click()
+        self.assertFalse(window.send_button.isEnabled())
+        window.send_button.click()
+        gate.set()
+        self.wait_until(lambda: window.worker is None)
+        self.assertEqual(calls, ['¿Una siesta?'])
+        self.assertFalse(window.send_button.isEnabled())
+        window.input.setText('Otra pregunta')
+        self.assertTrue(window.send_button.isEnabled())
+
+    def test_pixel_composer_focus_and_microphone_recording_icon(self):
+        window = self.make_window()
+        window._composer_focus(True)
+        self.assertTrue(window.composer.property('editing'))
+        window._composer_focus(False)
+        self.assertFalse(window.composer.property('editing'))
+        icon = window.mic_button.icon()
+        off = icon.pixmap(24, 24, QIcon.Mode.Normal, QIcon.State.Off).toImage()
+        on = icon.pixmap(24, 24, QIcon.Mode.Normal, QIcon.State.On).toImage()
+        self.assertFalse(off.isNull())
+        self.assertNotEqual(off, on)
+        window.microphone.recording = True
+        window._voice_changed(True)
+        self.assertTrue(window.mic_button.isChecked())
+        self.assertFalse(window.send_button.isEnabled())
+        window.microphone.cancel()
 
     def test_transparency_placement_and_asset(self):
         window = self.make_window()

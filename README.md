@@ -53,6 +53,19 @@ la interacción visual sigue disponible.
 
 ## Sonidos y diálogo temporal
 
+### Interfaz pixelada
+
+La entrada y el globo usan **Pixelify Sans**, una fuente libre de estilo pixelado
+(inspiración retro/Minecraft, no su tipografía oficial). Se incluye con su
+[licencia](assets/fonts/OFL.txt), sin instalación en Windows ni descarga al iniciar.
+Soporta acentos, ñ y signos españoles; si falta, utiliza Consolas.
+
+La caja de escritura tiene bordes rectos con relieve y resalte verde al recibir
+el foco. El botón con flecha envía igual que **Enter**, y se desactiva si el texto
+está vacío o hay una solicitud en curso. El micrófono tiene un icono pixelado que
+cambia a un cuadrado rojo al grabar. Se conservan los avisos de consumo y accesibilidad.
+El tamaño del gato y de la ventana no cambia.
+
 Los efectos se incluyen en `assets/audio/`; no dependen de la
 carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
 
