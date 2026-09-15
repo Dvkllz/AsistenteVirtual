@@ -1,6 +1,7 @@
 """Opt-in microphone capture in memory; bounded transcription off the GUI thread."""
 
 from array import array
+from contextlib import nullcontext
 import io
 import wave
 
@@ -32,7 +33,7 @@ def pcm_to_wav(pcm, rate, channels):
     return output.getvalue()
 
 
-def transcribe_audio(audio, *, live=False):
+def transcribe_audio(audio, *, live=False, session=None):
     # Demo mode cannot open a client, even if a key exists.
     if not live:
         raise PetServiceError("Activa OpenAI en el menú para dictar; la transcripción consume créditos.")
@@ -42,7 +43,9 @@ def transcribe_audio(audio, *, live=False):
     if not key:
         raise PetServiceError("Falta la clave de OpenAI para transcribir.")
     try:
-        with openai.OpenAI(api_key=key, timeout=20.0, max_retries=0) as client:
+        connection = (nullcontext(session.get(key)) if session is not None
+                      else openai.OpenAI(api_key=key, timeout=20.0, max_retries=0))
+        with connection as client:
             result = client.audio.transcriptions.create(
                 model=TRANSCRIPTION_MODEL,
                 file=("pregunta.wav", audio, "audio/wav"),

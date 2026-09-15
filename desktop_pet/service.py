@@ -1,8 +1,8 @@
 """Text service independent from Qt; no credentials or network needed for demo."""
 
 import os
+from contextlib import nullcontext
 from pathlib import Path
-import time
 
 import openai
 
@@ -53,14 +53,48 @@ def has_openai_key() -> bool:
     return key.startswith("sk-") and len(key) >= 40
 
 
-def answer_question(question: str, *, live: bool = False) -> str:
+class ApiSession:
+    """One lazy connection pool per window, shared by serialized voice/text jobs."""
+    def __init__(self):
+        self._client = None
+        self._key = ""
+
+    def get(self, key):
+        if self._client is None or key != self._key:
+            self.close()
+            self._client = openai.OpenAI(api_key=key, timeout=20.0, max_retries=0)
+            self._key = key
+        return self._client
+
+    def close(self):
+        client, self._client, self._key = self._client, None, ""
+        if client is not None:
+            client.close()
+
+
+def _stream_response(client, parameters, on_partial):
+    text, final = "", None
+    with client.responses.create(**parameters, stream=True) as events:
+        for event in events:
+            if event.type in ("response.output_text.delta", "response.refusal.delta"):
+                text += event.delta
+                on_partial(text)
+            elif event.type in ("response.completed", "response.incomplete"):
+                final = event.response
+            elif event.type in ("response.failed", "error"):
+                raise PetServiceError("OpenAI no pudo terminar la respuesta. Puedes intentarlo de nuevo.")
+    if final is None:
+        raise PetServiceError("La respuesta se interrumpió. No se reintentará automáticamente.")
+    return final, text
+
+
+def answer_question(question: str, *, live: bool = False, on_partial=None, session=None) -> str:
     question = question.strip()
     if not question:
         raise PetServiceError("Primero escribe algo. Aún no leo mentes.")
     if len(question) > MAX_QUESTION_CHARS:
         raise PetServiceError(f"Máximo {MAX_QUESTION_CHARS} caracteres por pregunta.")
     if not live:
-        time.sleep(0.45)
         return "Respuesta de prueba: estoy listo para ayudarte. Mi talento para fingir que pienso es impecable."
 
     key = config_value("OPENAI_API_KEY")
@@ -69,15 +103,22 @@ def answer_question(question: str, *, live: bool = False) -> str:
     model = config_value("OPENAI_MODEL") or DEFAULT_MODEL
     try:
         # No automatic retries: each submitted question makes at most one attempt.
-        with openai.OpenAI(api_key=key, timeout=20.0, max_retries=0) as client:
-            response = client.responses.create(
+        connection = (nullcontext(session.get(key)) if session is not None
+                      else openai.OpenAI(api_key=key, timeout=20.0, max_retries=0))
+        streamed_text = ""
+        with connection as client:
+            parameters = dict(
                 model=model,
                 instructions=SYSTEM_PROMPT,
                 input=question,
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 store=False,
             )
-        text = response.output_text.strip()
+            if on_partial is not None:
+                response, streamed_text = _stream_response(client, parameters, on_partial)
+            else:
+                response = client.responses.create(**parameters)
+        text = (response.output_text or streamed_text).strip()
         if not text:
             raise PetServiceError("No llegó una respuesta de texto. Puedes intentarlo de nuevo.")
         if response.status == "incomplete":

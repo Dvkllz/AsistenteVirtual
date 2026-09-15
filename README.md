@@ -81,12 +81,15 @@ carpeta Escritorio para funcionar. Se reproducen localmente con Qt, sin API:
 
 El globo aparece solo durante el diálogo (6–30 segundos según la longitud),
 también para errores o avisos, y después queda invisible. Su espacio se reserva
-para que el gato no salte de posición. El campo de preguntas y el indicador de
-modo siguen disponibles. No hay globo ni sonido de bienvenida al iniciar.
+para que el gato no salte de posición. El campo de preguntas sigue disponible.
+El modo solo aparece en el submenú **Modo de respuesta**, no debajo del campo.
+Solo se muestran estados temporales como «GRABANDO» o «CONECTANDO».
+No hay globo ni sonido de bienvenida al iniciar ni al cambiar de modo.
 La lectura se calcula como 3 segundos para advertir el mensaje más 0,4 segundos
 por palabra: una respuesta de 45 palabras permanece 21 segundos.
-Mientras espera la API, solo cambia el indicador inferior; el maullido suena
-al llegar la respuesta, no también durante la espera.
+Mientras conecta, aparece un estado temporal; el maullido suena al llegar las
+primeras palabras, una sola vez. El globo se actualiza conforme llega el texto.
+El tiempo completo de lectura comienza al terminar la respuesta, no al primer fragmento.
 Al hablar cancela el paseo y las travesuras; no se puede iniciar otro paseo
 hasta terminar el diálogo. Si lo lanzas, completa la caída y luego queda quieto.
 
@@ -164,14 +167,16 @@ sin clave y sin consumo de tokens. No es una respuesta de IA.
 
 ## Hablarle por micrófono
 
-1. Activa **Usar OpenAI** desde el menú de clic derecho.
+1. Activa **Usar OpenAI** en clic derecho → **Modo de respuesta**.
 2. Pulsa **🎙**: el indicador rojo y «GRABANDO» confirman la captura.
-3. Habla y pulsa **■** para transcribir. Se detiene sola a los 15 segundos.
-4. Revisa el dictado en el campo de texto y pulsa **Enter** para pedir la respuesta.
+3. Habla y pulsa **■** para terminar. Se detiene sola a los 15 segundos.
+4. El dictado se transcribe y se envía automáticamente: no pide confirmación ni Enter.
 
 El botón avisa de que transcribir consume créditos. Cada dictado enviado hace
-una transcripción con `gpt-4o-mini-transcribe`; Enter hace una consulta de texto
-separada. No hay reintentos automáticos. El modo de prueba no abre el micrófono
+una transcripción con `gpt-4o-mini-transcribe` y, si es válida, una consulta de texto
+automática. El aviso del micrófono informa del coste de ambas. No hay reintentos
+automáticos ni consultas de respuesta si falla la transcripción.
+El modo de prueba no abre el micrófono
 ni llama a la API. No se sobrescriben borradores existentes.
 
 **Escape**, cambiar de aplicación, abrir el menú, agarrar el gato o cerrar
@@ -206,9 +211,10 @@ mostrarla en la consola con:
 .\.venv\Scripts\python.exe main.py --live
 ```
 
-También puedes cambiar entre ambos modos desde el menú de clic derecho. El
-indicador inferior mostrará **OPENAI · consume tokens**. La aplicación solo
-envía una solicitud de texto al pulsar Enter (el dictado usa otra de transcripción). El modelo predeterminado es
+También puedes cambiar entre ambos modos desde clic derecho → **Modo de respuesta**.
+La opción seleccionada y el aviso de consumo quedan dentro del menú.
+La aplicación envía una solicitud de texto al pulsar Enter o la flecha, o al
+finalizar correctamente un dictado (que usa además una transcripción). El modelo predeterminado es
 `gpt-4.1-mini`; se puede cambiar con `OPENAI_MODEL`. El acceso al modelo y la
 facturación dependen de tu cuenta de la API.
 
@@ -219,6 +225,23 @@ facturación dependen de tu cuenta de la API.
 - Sin reintentos automáticos ni llamadas al iniciar.
 - Solicitudes con `store=False`; la aplicación no guarda conversaciones.
 - Tiempo de espera HTTP de 20 segundos y errores legibles sin mostrar secretos.
+
+### Menor espera percibida
+
+La respuesta se recibe por streaming y se muestra desde las primeras palabras.
+Una conexión HTTP reutilizable por ventana sirve tanto a la transcripción como
+a las preguntas sucesivas, evitando recrear el cliente y su conexión en cada
+consulta. Se crea solo al usar la API y se libera después de terminar los trabajos
+pendientes al cerrar. No hay llamadas de calentamiento ni consumo al iniciar.
+Se retiró la espera artificial de 450 ms del modo local.
+
+No se cambia de modelo ni se aumenta el límite de tokens. La latencia real sigue
+dependiendo de Internet y de OpenAI; el streaming no garantiza reducir el tiempo
+total de generación. El dictado sigue necesitando transcribir antes de responder,
+pero ya no espera una confirmación manual entre ambas operaciones.
+Si el flujo se corta, muestra un error, no presenta un fragmento como respuesta
+completa ni vuelve a enviar la petición.
+Basado en la [guía oficial de streaming](https://developers.openai.com/api/docs/guides/streaming-responses).
 
 Las solicitudes corren en `QThread`. Se deshabilita la entrada mientras llega
 la respuesta para evitar envíos duplicados; la mascota sigue siendo arrastrable.

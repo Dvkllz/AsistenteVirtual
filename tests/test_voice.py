@@ -245,19 +245,20 @@ class VoiceWindowTests(unittest.TestCase):
         self.assertFalse(self.window.voice_busy)
         self.assertTrue(self.window.input.isEnabled())
 
-    def test_transcript_is_reviewed_without_automatic_answer_and_ui_keeps_ticking(self):
+    def test_transcript_automatically_submits_once_and_ui_keeps_ticking(self):
+        self.window.set_mode(True, announce=False)
         gate = threading.Event()
         ticks = []
         timer = QTimer(self.window)
         timer.setInterval(10)
         timer.timeout.connect(lambda: ticks.append(1))
         timer.start()
-        def fake_transcribe(audio, live):
+        def fake_transcribe(audio, live, session):
             self.assertTrue(live)
             gate.wait(1)
             return "¿Qué tal?"
         with patch("desktop_pet.window.transcribe_audio", side_effect=fake_transcribe) as transcribe, \
-                patch("desktop_pet.window.answer_question") as answer:
+                patch("desktop_pet.window.answer_question", return_value="Todo bien.") as answer:
             self.window._transcribe(b"fake")
             self.window._transcribe(b"duplicate")
             QTest.qWait(40)
@@ -265,14 +266,37 @@ class VoiceWindowTests(unittest.TestCase):
             self.assertFalse(self.window.mic_button.isEnabled())
             self.assertFalse(self.window.input.isEnabled())
             gate.set()
+            self.wait_until(lambda: self.window.voice_worker is None and self.window.worker is None)
+            transcribe.assert_called_once()
+            answer.assert_called_once()
+            self.assertEqual(answer.call_args.args, ("¿Qué tal?",))
+            self.assertIs(answer.call_args.kwargs["session"], transcribe.call_args.kwargs["session"])
+        self.assertEqual(self.window.input.text(), "")
+        self.assertTrue(self.window.input.isEnabled())
+        self.assertEqual(self.window.bubble.text(), "Todo bien.")
+        self.assertTrue(self.window.mode.isHidden())
+
+    def test_failed_dictation_does_not_submit_text_or_retry(self):
+        self.window.set_mode(True, announce=False)
+        with patch("desktop_pet.window.transcribe_audio", side_effect=PetServiceError("No reconocí palabras.")) as transcribe, \
+                patch("desktop_pet.window.answer_question") as answer:
+            self.window._transcribe(b"fake")
             self.wait_until(lambda: self.window.voice_worker is None)
             transcribe.assert_called_once()
             answer.assert_not_called()
-        self.assertEqual(self.window.input.text(), "¿Qué tal?")
-        self.assertTrue(self.window.input.isEnabled())
-        self.assertIn("Enter", self.window.bubble.text())
+        self.assertIn("No reconocí", self.window.bubble.text())
+        self.assertTrue(self.window.mode.isHidden())
+        self.assertTrue(self.window.mic_button.isEnabled())
+
+    def test_demo_cannot_send_audio_even_if_capture_signal_is_emitted(self):
+        with patch("desktop_pet.window.transcribe_audio") as transcribe:
+            self.window.microphone.captured.emit(b"fake")
+            self.app.processEvents()
+            transcribe.assert_not_called()
+            self.assertIsNone(self.window.voice_worker)
 
     def test_close_waits_for_transcription_and_does_not_display_late_result(self):
+        self.window.set_mode(True, announce=False)
         gate = threading.Event()
         def fake_transcribe(*args, **kwargs):
             gate.wait(1)

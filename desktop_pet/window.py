@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
-from desktop_pet.service import MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
+from desktop_pet.service import ApiSession, MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
 from desktop_pet.physics import Body, DragVelocity
 from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state, select_frame
 from desktop_pet.autonomy import CatAutonomy
@@ -31,15 +31,19 @@ def reading_time_ms(text: str) -> int:
 class AnswerThread(QThread):
     answered = pyqtSignal(str)
     failed = pyqtSignal(str)
+    partial = pyqtSignal(str)
 
-    def __init__(self, question: str | bytes, responder: Callable, parent: QWidget):
+    def __init__(self, question: str | bytes, responder: Callable, parent: QWidget, *, streaming=False):
         super().__init__(parent)
         self.question = question
         self.responder = responder
+        self.streaming = streaming
 
     def run(self) -> None:
         try:
-            self.answered.emit(self.responder(self.question))
+            answer = (self.responder(self.question, self.partial.emit) if self.streaming
+                      else self.responder(self.question))
+            self.answered.emit(answer)
         except PetServiceError as error:
             self.failed.emit(str(error))
         except Exception:
@@ -56,6 +60,9 @@ class PetWindow(QWidget):
         self.settings = settings or QSettings()
         self.worker: AnswerThread | None = None
         self.voice_worker: AnswerThread | None = None
+        self.api_session = ApiSession()
+        self._pending_transcript = False
+        self._partial_answer_received = False
         self.microphone = Microphone(self)
         self.microphone.changed.connect(self._voice_changed)
         self.microphone.captured.connect(self._transcribe)
@@ -213,8 +220,8 @@ class PetWindow(QWidget):
         self.mic_button.setCheckable(True)
         self.mic_button.setFixedSize(32, 36)
         self.mic_button.setAccessibleName("Grabar pregunta por voz")
-        self.mic_button.setToolTip("Grabar hasta 15 s y enviar audio a OpenAI (consume créditos).\n"
-                                   "Vuelve a pulsar para transcribir; Escape cancela sin enviar.")
+        self.mic_button.setToolTip("Grabar hasta 15 s; al terminar se transcribe y responde automáticamente.\n"
+                                   "Audio y respuesta consumen créditos. Escape cancela antes de enviar.")
         self.mic_button.clicked.connect(self._toggle_microphone)
         input_row.addWidget(self.mic_button)
         self.send_button = QPushButton()
@@ -234,7 +241,13 @@ class PetWindow(QWidget):
         self.cancel_voice.activated.connect(self.microphone.cancel)
         self.mode = QLabel()
         self.mode.setObjectName("mode")
+        self.mode.setAccessibleName("Estado temporal")
+        self.mode.setFixedHeight(22)
+        policy = self.mode.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.mode.setSizePolicy(policy)
         layout.addWidget(self.mode, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.mode.hide()
 
         self.menu = QMenu(self)
         self.menu.aboutToShow.connect(self._pause_motion)
@@ -247,7 +260,8 @@ class PetWindow(QWidget):
         self.mode_group.addAction(self.live_action)
         self.demo_action.triggered.connect(lambda checked: checked and self.set_mode(False))
         self.live_action.triggered.connect(lambda checked: checked and self.set_mode(True))
-        self.menu.addActions((self.demo_action, self.live_action))
+        self.response_menu = self.menu.addMenu("Modo de respuesta")
+        self.response_menu.addActions((self.demo_action, self.live_action))
         self.menu.addSeparator()
         self.physics_action = QAction("Física activada", self, checkable=True)
         self.physics_action.setChecked(self.physics_enabled)
@@ -399,7 +413,12 @@ class PetWindow(QWidget):
         return self.microphone.recording or self.voice_worker is not None
 
     def _restore_mode_label(self):
-        self.mode.setText("OPENAI · consume tokens" if self.live else "PRUEBA LOCAL · sin consumo")
+        self.mode.clear()
+        self.mode.hide()
+
+    def _show_status(self, text):
+        self.mode.setText(text)
+        self.mode.show()
 
     def _sync_send_button(self):
         self.send_button.setEnabled(bool(self.input.text().strip()) and self.input.isEnabled()
@@ -425,7 +444,7 @@ class PetWindow(QWidget):
         self.mic_button.setChecked(recording)
         self.mic_button.setAccessibleName("Detener y transcribir" if recording else "Grabar pregunta por voz")
         if recording:
-            self.mode.setText("GRABANDO · máx. 15 s · Esc cancela")
+            self._show_status("GRABANDO · máx. 15 s · Esc cancela")
         else:
             self._restore_mode_label()
         self._voice_controls()
@@ -452,10 +471,12 @@ class PetWindow(QWidget):
         self.microphone.start()
 
     def _transcribe(self, audio):
-        if self._closing or self.voice_worker is not None or self.worker is not None:
+        if not self.live or self._closing or self.voice_worker is not None or self.worker is not None:
             return
-        self.mode.setText("TRANSCRIBIENDO · espera…")
-        self.voice_worker = AnswerThread(audio, lambda value: transcribe_audio(value, live=True), self)
+        self._pending_transcript = False
+        self._show_status("TRANSCRIBIENDO…")
+        self.voice_worker = AnswerThread(
+            audio, lambda value: transcribe_audio(value, live=True, session=self.api_session), self)
         self.voice_worker.answered.connect(self._on_transcript)
         self.voice_worker.failed.connect(self.show_response)
         self.voice_worker.finished.connect(self._voice_finished)
@@ -467,9 +488,11 @@ class PetWindow(QWidget):
             return
         self.input.setText(text)
         self.input.setCursorPosition(0)
-        self.show_response("Dictado listo. Revísalo y pulsa Enter para que responda.")
+        self._pending_transcript = bool(text.strip())
 
     def _voice_finished(self):
+        send = self._pending_transcript
+        self._pending_transcript = False
         if self.voice_worker is not None:
             self.voice_worker.question = b""
             self.voice_worker.deleteLater()
@@ -479,6 +502,9 @@ class PetWindow(QWidget):
             return
         self._restore_mode_label()
         self._voice_controls()
+        if send:
+            self.submit()
+            return
         self.input.setFocus()
 
     def _end_speaking(self, *, completed: bool = False) -> None:
@@ -671,15 +697,12 @@ class PetWindow(QWidget):
         self.demo_action.setChecked(not live)
         self.live_action.setChecked(live)
         self.setWindowTitle("Mascota virtual · " + ("OpenAI" if live else "Prueba local"))
-        self.mode.setText("OPENAI · consume tokens" if live else "PRUEBA LOCAL · sin consumo")
+        self.response_menu.setTitle("Modo: " + ("OpenAI" if live else "prueba local"))
+        self._restore_mode_label()
         if not announce:
             return
         if live and not has_openai_key():
             self.show_response("OpenAI está seleccionado, pero falta una clave válida. Magnífica conexión imaginaria.")
-        elif live:
-            self.show_response("OpenAI activado. Cada pregunta consume tokens; elige tus batallas.")
-        else:
-            self.show_response("Modo de prueba local. Escribe algo y pulsa Enter: sarcasmo gratis, por ahora.")
 
     def place_bottom_right(self) -> None:
         screen = QApplication.primaryScreen()
@@ -787,10 +810,14 @@ class PetWindow(QWidget):
         self._end_speaking()
         self.input.setEnabled(False)
         self.send_button.setEnabled(False)
-        self.mode.setText("PENSANDO · espera…")
+        self._show_status("CONECTANDO…" if self.live else "RESPONDIENDO…")
         self.mic_button.setEnabled(False)
-        responder = self._custom_responder or (lambda value: answer_question(value, live=self.live))
-        self.worker = AnswerThread(question, responder, self)
+        self._partial_answer_received = False
+        responder = self._custom_responder or (
+            lambda value, partial: answer_question(
+                value, live=self.live, on_partial=partial, session=self.api_session))
+        self.worker = AnswerThread(question, responder, self, streaming=self._custom_responder is None)
+        self.worker.partial.connect(self._on_partial_answer)
         self.worker.answered.connect(self._on_answer)
         self.worker.failed.connect(self.show_response)
         self.worker.finished.connect(self._on_finished)
@@ -821,14 +848,35 @@ class PetWindow(QWidget):
         self._refresh_sprite()
 
     @pyqtSlot(str)
+    def _on_partial_answer(self, text: str) -> None:
+        if self._closing or not text.strip():
+            return
+        self._restore_mode_label()
+        if not self._partial_answer_received:
+            self.show_response(text)
+            self._partial_answer_received = True
+        else:
+            self.bubble.setText(text)
+        # Keep the bubble visible through the network read timeout. The full
+        # reading allowance starts only when the final response arrives.
+        self.talking_timer.start(30000)
+
+    @pyqtSlot(str)
     def _on_answer(self, text: str) -> None:
         if self._closing:
             return
         self.input.clear()
-        self.show_response(text)
+        if self._partial_answer_received:
+            self.bubble.setText(text)
+            self._last_response_at = time.monotonic()
+            self.talking_timer.start(reading_time_ms(text))
+            self._partial_answer_received = False
+        else:
+            self.show_response(text)
 
     @pyqtSlot()
     def _on_finished(self) -> None:
+        self._partial_answer_received = False
         if self.worker is not None:
             self.worker.deleteLater()
             self.worker = None
@@ -868,4 +916,5 @@ class PetWindow(QWidget):
             self.hide()
             event.ignore()
         else:
+            self.api_session.close()
             event.accept()

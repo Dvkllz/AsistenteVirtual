@@ -485,15 +485,87 @@ class WindowTests(unittest.TestCase):
             window = self.make_window()
             window.live_action.trigger()
             self.assertTrue(window.live)
-            self.assertIn('consume tokens', window.mode.text())
+            self.assertTrue(window.mode.isHidden())
+            self.assertIn('OpenAI', window.response_menu.title())
+            self.assertIn('consume tokens', window.live_action.text())
             window.input.setText('Hola')
             window.submit()
             self.assertFalse(window.demo_action.isEnabled())
             self.wait_until(lambda: window.worker is None)
-            answer.assert_called_once_with('Hola', live=True)
+            answer.assert_called_once()
+            self.assertEqual(answer.call_args.args, ('Hola',))
+            self.assertTrue(answer.call_args.kwargs['live'])
+            self.assertTrue(callable(answer.call_args.kwargs['on_partial']))
+            self.assertIs(answer.call_args.kwargs['session'], window.api_session)
             self.assertTrue(window.demo_action.isEnabled())
             window.demo_action.trigger()
             self.assertFalse(window.live)
+
+    def test_first_words_are_visible_before_completion_with_one_meow(self):
+        gate = threading.Event()
+        def stream(question, *, live, on_partial, session):
+            on_partial('Ya estoy')
+            gate.wait(2)
+            on_partial('Ya estoy respondiendo.')
+            return 'Ya estoy respondiendo.'
+        with patch('desktop_pet.window.answer_question', side_effect=stream):
+            window = self.make_window(live=True)
+            with patch.object(window.sounds, 'start_speech') as meow:
+                window.input.setText('Hola')
+                window.submit()
+                try:
+                    self.wait_until(lambda: window.bubble.text() == 'Ya estoy')
+                    self.assertIsNotNone(window.worker)
+                    self.assertTrue(window.scroll.isVisible())
+                    self.assertEqual(window.talking_timer.interval(), 30000)
+                    self.assertFalse(window.send_button.isEnabled())
+                    gate.set()
+                    self.wait_until(lambda: window.worker is None)
+                    self.assertEqual(window.bubble.text(), 'Ya estoy respondiendo.')
+                    self.assertEqual(window.talking_timer.interval(), 6000)
+                    meow.assert_called_once()
+                    self.assertTrue(window.mode.isHidden())
+                finally:
+                    gate.set()
+
+    def test_close_after_first_words_waits_for_worker_and_ignores_late_text(self):
+        gate = threading.Event()
+        def stream(question, *, live, on_partial, session):
+            on_partial('Primera parte')
+            gate.wait(2)
+            on_partial('Texto tardío')
+            return 'Texto tardío'
+        with patch('desktop_pet.window.answer_question', side_effect=stream):
+            window = self.make_window(live=True)
+            window.input.setText('Hola')
+            window.submit()
+            try:
+                self.wait_until(lambda: window.bubble.text() == 'Primera parte')
+                with patch.object(window.api_session, 'close') as close:
+                    window.close()
+                    self.assertFalse(window.isVisible())
+                    close.assert_not_called()
+                    gate.set()
+                    self.wait_until(lambda: window.worker is None)
+                    self.assertNotEqual(window.bubble.text(), 'Texto tardío')
+                    self.wait_until(lambda: close.called)
+            finally:
+                gate.set()
+
+    def test_response_modes_live_only_in_menu_and_status_does_not_shift_cat(self):
+        window = self.make_window()
+        self.assertTrue(window.mode.isHidden())
+        self.assertEqual(window.mode.text(), '')
+        self.assertIn(window.demo_action, window.response_menu.actions())
+        self.assertNotIn(window.demo_action, window.menu.actions())
+        position = window.character.pos()
+        window._show_status('GRABANDO')
+        self.app.processEvents()
+        self.assertEqual(window.character.pos(), position)
+        window._restore_mode_label()
+        self.app.processEvents()
+        self.assertTrue(window.mode.isHidden())
+        self.assertEqual(window.character.pos(), position)
 
     def test_context_menu_close_during_request(self):
         gate = threading.Event()

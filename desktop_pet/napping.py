@@ -59,7 +59,7 @@ class CatNaps:
         w._stop_petting()
         w._stop_motion()
         self.previous_mode = w.mode.text()
-        w.mode.setText("DURMIENDO · Zzz")
+        w._show_status("DURMIENDO · Zzz")
         w._refresh_sprite()
         self.wake_timer.start()
 
@@ -71,7 +71,7 @@ class CatNaps:
         w.sleeping = False
         self.next_allowed = time.monotonic() + 30
         if self.previous_mode is not None:
-            w.mode.setText(self.previous_mode)
+            w._restore_mode_label()
         w._refresh_sprite()
         w._start_motion()
 
