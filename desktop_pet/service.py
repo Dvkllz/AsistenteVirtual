@@ -2,14 +2,15 @@
 
 import os
 from contextlib import nullcontext
-from pathlib import Path
 
 import openai
+
+from desktop_pet.paths import local_config_path
 
 MAX_QUESTION_CHARS = 800
 MAX_OUTPUT_TOKENS = 120
 DEFAULT_MODEL = "gpt-4.1-mini"
-LOCAL_ENV_PATH = Path(__file__).resolve().parent.parent / ".env.local"
+LOCAL_ENV_PATH = local_config_path()
 SYSTEM_PROMPT = (
     "Eres una pequeña mascota virtual de escritorio. Responde en español salvo que "
     "te pidan otro idioma. Eres un gato siamés: útil, directo y casi siempre "

@@ -1,0 +1,36 @@
+ASISTENTE VIRTUAL - WINDOWS x64
+
+1. Copia AsistenteVirtual.exe a una carpeta de tu computador.
+2. Abrelo con doble clic. No necesitas instalar Python ni las dependencias.
+3. Clic derecho sobre el gato para acceder al menu y cerrar.
+
+Empieza en modo local: animaciones, caricias, sonidos y frases funcionan sin internet.
+El primer arranque puede tardar unos segundos: el ejecutable extrae sus componentes
+a una carpeta temporal. No necesita permisos de administrador.
+
+PARA USAR LA IA Y EL MICROFONO
+Necesitas internet y una clave de API propia con saldo. Tu clave NO va incluida.
+Puedes configurar OPENAI_API_KEY en las variables de entorno de tu usuario de
+Windows y volver a abrir la mascota. Alternativamente, copia configuracion.ejemplo.txt
+con el nombre exacto .env.local junto al ejecutable y escribe tu clave despues de =.
+Activa "Usar OpenAI" en el submenu de modo. Texto y transcripcion consumen creditos.
+Para dictar necesitas un microfono y permiso de Windows para aplicaciones de escritorio.
+No compartas .env.local ni tu clave; ese archivo local no esta cifrado.
+
+COMPATIBILIDAD Y VERIFICACION
+Paquete para Windows 10 (1809 o posterior) y Windows 11 x64 (Intel/AMD);
+no para macOS, Linux o Windows ARM nativo.
+Probado en este equipo con Python y Qt incluidos, sin Python en PATH y con la red
+bloqueada durante la comprobacion interna. Falta verificarlo en otro PC limpio.
+Consulta el README del proyecto para requisitos y limitaciones actualizados.
+
+El ejecutable no esta firmado digitalmente. Windows o un antivirus podrian mostrar
+un aviso; verifica origen y huella SHA256. No desactives las protecciones del equipo.
+
+LICENCIAS
+Conserva la carpeta licencias al redistribuir. Contiene avisos de Python, Qt,
+PyQt6, la fuente y dependencias. PyQt6 instalado usa GPLv3; antes de distribuir
+publicamente o comercializar, hay que resolver las obligaciones de licencia
+y acceso al codigo fuente o usar una licencia comercial apropiada.
+Este paquete no cambia la licencia del codigo del proyecto ni de sus audios.
+Codigo: https://github.com/Dvkllz/AsistenteVirtual

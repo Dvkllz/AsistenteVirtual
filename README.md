@@ -295,8 +295,66 @@ La pose nueva y su prompt están en [dormir](assets/siamese/SLEEPING.md).
 - `tests/`: comprobaciones locales de interfaz e integración simulada.
 
 La lógica está separada de la interfaz para facilitar una futura adaptación a
-otros sistemas. Esta entrega se verifica en Windows; no incluye instalador `.exe`,
-voz sintetizada, memoria ni inicio automático; sí admite dictado voluntario.
+otros sistemas. Esta entrega incluye un `.exe` portable para Windows, sin instalador.
+No incluye voz sintetizada, memoria ni inicio automático; sí admite dictado voluntario.
+
+## Ejecutable para Windows sin Python
+
+`dist/AsistenteVirtual.exe` incluye el intérprete, las dependencias, los PNG de
+animación, los seis MP3 utilizados y Pixelify Sans. No necesita Python instalado
+ni privilegios de administrador. `dist/AsistenteVirtual-Windows-x64.zip` añade
+instrucciones, plantilla de configuración vacía, licencias y huella SHA256.
+Los binarios generados no se suben a Git; sí la receta de construcción.
+
+Objetivo: Windows 10 desde 1809 o Windows 11, **x64 Intel/AMD**, conforme a los
+[sistemas soportados por Qt](https://doc.qt.io/qt-6/windows.html).
+La comprobación local se hace en Windows 11; probarlo en otro PC limpio sigue pendiente.
+No es un ejecutable para macOS, Linux, Windows de 32 bits ni ARM nativo.
+
+Abre el `.exe` con doble clic. Arranca en modo local, sin internet ni consumo.
+Para OpenAI, configura `OPENAI_API_KEY` en el entorno del usuario o en `.env.local`
+**junto al ejecutable**, y activa el modo en el menú. Ese archivo no está cifrado:
+no lo compartas. La clave del desarrollador jamás se incluye en el paquete.
+El micrófono requiere un dispositivo y permiso de Windows para apps de escritorio.
+
+El archivo único extrae sus componentes al iniciar; el primer arranque puede tardar
+unos segundos. La configuración externa no se guarda en esa extracción temporal.
+Implementación basada en [las rutas de PyInstaller](https://pyinstaller.org/en/stable/runtime-information.html).
+No está firmado digitalmente: verifica su procedencia y SHA256 si Windows o el
+antivirus muestran un aviso; no desactives las protecciones.
+
+### Reconstruir el paquete
+
+Desde un entorno de Python de 64 bits en Windows:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe scripts/build_windows.py
+pwsh -File scripts/verify_portable.ps1
+```
+
+La receta incluye recursos mediante una lista explícita; excluye `.env.local`,
+bocetos, pruebas y archivos ajenos a la ejecución. Copia avisos de dependencias
+y registra sus versiones. Las librerías Qt, FFmpeg y el runtime de Python se
+recogen mediante los hooks de PyInstaller. La compilación falla si detecta una
+posible clave incrustada en el código o configuración privada en los recursos.
+La búsqueda de DLL usa un PATH controlado (Python y Windows), y se rechazan
+binarios externos a esos entornos. Esto evita incorporar por accidente una ICU
+de otra aplicación e impedir que Qt arranque en el ejecutable aislado.
+
+Comprobación interna opcional: `AsistenteVirtual.exe --self-test informe.json`.
+Genera un informe y una vista PNG; bloquea conexiones de red, usa ajustes temporales,
+verifica sprites, tipografía, respuesta local en segundo plano, decodificación
+silenciada de todos los MP3 y el SDK con un transporte simulado. Solo enumera los
+micrófonos: no graba ni envía audio. No reemplaza probar el paquete en otro equipo.
+`verify_portable.ps1` copia solo el `.exe` a una carpeta nueva con espacios y lo
+ejecuta sin Python en PATH ni variables de configuración heredadas de Python,
+Qt u OpenAI. No modifica esas variables en el sistema ni desinstala Python.
+
+El ZIP conserva licencias de terceros. PyQt6 utiliza [GPLv3 o licencia comercial](https://riverbankcomputing.com/software/pyqt/).
+Antes de distribuir públicamente o comercializar, debe resolverse el cumplimiento
+de esas licencias y la disponibilidad del código fuente; este empaquetado no cambia
+la licencia del proyecto ni concede derechos adicionales sobre los audios.
 
 ## Verificación sin API
 

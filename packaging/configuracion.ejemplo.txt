@@ -1,0 +1,3 @@
+# Copia este archivo como .env.local junto a AsistenteVirtual.exe.
+# No compartas el archivo completado ni lo incluyas al distribuir la mascota.
+OPENAI_API_KEY=
