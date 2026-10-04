@@ -107,6 +107,19 @@ class WindowTests(unittest.TestCase):
             self.assertEqual(QFontInfo(menu.font()).family(), 'Pixelify Sans')
             self.assertEqual(menu.font().pixelSize(), 16)
 
+    def test_final_menu_and_submenu_have_green_background(self):
+        from desktop_pet import __version__, RELEASE_LABEL
+        window = self.make_window()
+        self.assertEqual(__version__, '1.0.0')
+        self.assertIn(RELEASE_LABEL, window.windowTitle())
+        for menu in (window.menu, window.response_menu):
+            menu.ensurePolished()
+            menu.adjustSize()
+            image = menu.grab().toImage()
+            self.assertEqual(image.pixelColor(4, 4).name(), '#18211c')
+        self.assertIn('QMenu::indicator:checked', window.styleSheet())
+        self.assertNotIn('#202536', window.styleSheet())
+
     def test_no_footer_gap_and_status_reuses_dialogue_space(self):
         window = self.make_window()
         character, composer = window.character.geometry(), window.composer.geometry()

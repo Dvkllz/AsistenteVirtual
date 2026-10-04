@@ -17,6 +17,8 @@ from desktop_pet.purring import PurrSound
 from desktop_pet.petting import HeadStrokes
 from desktop_pet.sounds import CatSounds
 from desktop_pet.napping import CatNaps
+from desktop_pet.concentration import Concentration, FOCUS_VERSION
+from desktop_pet import RELEASE_LABEL
 from desktop_pet.voice import Microphone, transcribe_audio
 from desktop_pet.chat_style import DialogueFrame, pixel_font_family, pixel_icon
 
@@ -73,6 +75,7 @@ class PetWindow(QWidget):
         self.sounds = CatSounds(self, enabled=self.settings.value("sound/effects", True, type=bool))
         self.sounds.close_finished.connect(self._close_sound_finished)
         self.autonomy = None
+        self.concentration = None
         self.sleeping = False
         self.naps = None
         self._last_response_at = time.monotonic()
@@ -105,7 +108,7 @@ class PetWindow(QWidget):
         self._last_tick = time.monotonic()
         self._physics_screen = QApplication.primaryScreen()
 
-        self.setWindowTitle("Mascota virtual")
+        self.setWindowTitle('Mascota virtual · ' + RELEASE_LABEL)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(268, 304)
@@ -153,12 +156,21 @@ class PetWindow(QWidget):
             }
             QMenu {
                 font-family: '__PIXEL_FONT__'; font-size: 16px;
-                background: #202536; color: #f3f5fc; border: 1px solid #46516b; padding: 5px;
+                background: #18211c; color: #edf2df; border: 2px solid #76846a;
+                border-top-color: #a2c184; border-left-color: #a2c184;
+                border-bottom-color: #0c130d; border-right-color: #0c130d;
+                border-radius: 0px; padding: 6px;
             }
-            QMenu::item { padding: 7px 20px; }
-            QMenu::item:selected { background: #394660; }
+            QMenu::item { padding: 7px 20px; border: 1px solid transparent; }
+            QMenu::item:selected { background: #3d5932; color: #f4ffe7; border-color: #7ba95c; }
+            QMenu::item:disabled { color: #84927c; }
+            QMenu::separator { height: 1px; background: #4b6042; margin: 5px 8px; }
+            QMenu::indicator { width: 10px; height: 10px; border: 2px solid #76846a; }
+            QMenu::indicator:unchecked { background: #18211c; }
+            QMenu::indicator:checked { background: #a2d179; border-color: #c1e895; }
+            QMenu::indicator:disabled { border-color: #4b6042; }
             QScrollBar:vertical { background: transparent; width: 6px; }
-            QScrollBar::handle:vertical { background: #687891; border-radius: 3px; min-height: 20px; }
+            QScrollBar::handle:vertical { background: #7b995f; border-radius: 3px; min-height: 20px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
         """.replace("__PIXEL_FONT__", pixel_font_family()))
 
@@ -269,6 +281,14 @@ class PetWindow(QWidget):
         self.live_action.triggered.connect(lambda checked: checked and self.set_mode(True))
         self.response_menu = self.menu.addMenu("Modo de respuesta")
         self.response_menu.addActions((self.demo_action, self.live_action))
+        self.concentration_action = QAction('Asistente de concentración', self, checkable=True)
+        self.concentration_action.setToolTip(
+            'Cierra la pestaña activa de Instagram/TikTok en Chrome o Edge. '
+            'Puede perder borradores. También cierra la última pestaña y su ventana. Esc cancela.')
+        self.menu.addAction(self.concentration_action)
+        self.concentration_status_action = QAction(FOCUS_VERSION + ' · Desactivado', self)
+        self.concentration_status_action.triggered.connect(lambda: self.concentration.explain())
+        self.menu.addAction(self.concentration_status_action)
         self.menu.addSeparator()
         self.physics_action = QAction("Física activada", self, checkable=True)
         self.physics_action.setChecked(self.physics_enabled)
@@ -326,6 +346,8 @@ class PetWindow(QWidget):
         QApplication.instance().screenAdded.connect(self._screen_added)
         self.autonomy = CatAutonomy(self)
         self.naps = CatNaps(self)
+        self.concentration = Concentration(self)
+        self.concentration_action.toggled.connect(self.concentration.set_enabled)
         QTimer.singleShot(0, self._start_motion)
 
     def _refresh_sprite(self) -> None:
@@ -600,6 +622,8 @@ class PetWindow(QWidget):
         self._refresh_sprite()
 
     def _pause_motion(self) -> None:
+        if self.concentration:
+            self.concentration.cancel()
         self.microphone.cancel()
         if self.naps:
             self.naps.wake()
@@ -615,6 +639,7 @@ class PetWindow(QWidget):
             self._stop_motion()
             return
         if (not self.physics_enabled or self._closing or not self.isVisible()
+                or (self.concentration and self.concentration.active)
                 or self._drag_offset is not None or self.petting or self.sleeping or self.voice_busy
                 or self.menu.isVisible() or self.input.hasFocus()
                 or (self.autonomy and (self.autonomy.pouncing or self.autonomy.swatting
@@ -705,7 +730,7 @@ class PetWindow(QWidget):
         self.live = live
         self.demo_action.setChecked(not live)
         self.live_action.setChecked(live)
-        self.setWindowTitle("Mascota virtual · " + ("OpenAI" if live else "Prueba local"))
+        self.setWindowTitle('Mascota virtual · ' + RELEASE_LABEL + ' · ' + ('OpenAI' if live else 'Prueba local'))
         self.response_menu.setTitle("Modo: " + ("OpenAI" if live else "prueba local"))
         self._restore_mode_label()
         if not announce:
@@ -838,6 +863,8 @@ class PetWindow(QWidget):
     def show_response(self, text: str) -> None:
         if self._closing:
             return
+        if self.concentration:
+            self.concentration.cancel()
         if self.naps:
             self.naps.wake()
         self._last_response_at = time.monotonic()
@@ -911,6 +938,8 @@ class PetWindow(QWidget):
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._closing:
             self._closing = True
+            if self.concentration:
+                self.concentration.close()
             self.microphone.cancel()
             if self.naps:
                 self.naps.close()

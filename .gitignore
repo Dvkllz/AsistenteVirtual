@@ -9,3 +9,8 @@ artifacts/
 build/
 dist/
 *.egg-info/
+openai.key
+AsistenteVirtual-Privado.exe
+AsistenteVirtual-PRIVADO-*.zip
+[Ff]rijol*.exe
+[Ff]rijol*.zip

@@ -14,6 +14,18 @@ from desktop_pet.service import (
 
 
 class ServiceTests(unittest.TestCase):
+    def test_embedded_key_fallback_respects_external_overrides(self):
+        from desktop_pet.service import config_value
+        with patch.dict(os.environ, {}, clear=True), \
+                patch('desktop_pet.service._local_env_value', return_value=''), \
+                patch('desktop_pet.service.embedded_api_key', return_value='private-test-value'):
+            self.assertEqual(config_value('OPENAI_API_KEY'), 'private-test-value')
+            self.assertEqual(config_value('OPENAI_MODEL'), '')
+            with patch.dict(os.environ, {'OPENAI_API_KEY': ''}):
+                self.assertEqual(config_value('OPENAI_API_KEY'), '')
+            with patch('desktop_pet.service._local_env_value', return_value='external-value'):
+                self.assertEqual(config_value('OPENAI_API_KEY'), 'external-value')
+
     def test_demo_never_constructs_api_client(self):
         with patch('desktop_pet.service.openai.OpenAI') as client:
             self.assertIn('prueba', answer_question('Hola'))

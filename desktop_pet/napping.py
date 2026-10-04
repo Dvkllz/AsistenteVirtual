@@ -47,6 +47,7 @@ class CatNaps:
             return
         if (not self.enabled or idle is None or idle < 30 or time.monotonic() < self.next_allowed
                 or w._closing or not w.isVisible() or w.worker is not None or w.voice_busy
+                or (getattr(w, 'concentration', None) and w.concentration.active)
                 or w.talking_timer.isActive() or w.petting or w._drag_offset is not None
                 or w.menu.isVisible() or mouse_button_down()
                 or (w.motion_timer.isActive() and w.y() < w._bounds()[3] - 1)

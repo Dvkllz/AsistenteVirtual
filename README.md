@@ -1,4 +1,8 @@
-# Asistente Virtual · v1.0
+# Asistente Virtual · 1.0 final
+
+Versión final 1.0.0: menú y submenús verdes con fuente Pixelify Sans, voz,
+física, caricias, sonidos y asistente de concentración. El repositorio contiene
+solo código y recursos; las claves y los ejecutables privados no se publican.
 
 Mascota de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
@@ -314,7 +318,7 @@ No es un ejecutable para macOS, Linux, Windows de 32 bits ni ARM nativo.
 Abre el `.exe` con doble clic. Arranca en modo local, sin internet ni consumo.
 Para OpenAI, configura `OPENAI_API_KEY` en el entorno del usuario o en `.env.local`
 **junto al ejecutable**, y activa el modo en el menú. Ese archivo no está cifrado:
-no lo compartas. La clave del desarrollador jamás se incluye en el paquete.
+no lo compartas. La clave del desarrollador no se incluye en el paquete público.
 El micrófono requiere un dispositivo y permiso de Windows para apps de escritorio.
 
 El archivo único extrae sus componentes al iniciar; el primer arranque puede tardar
@@ -351,10 +355,62 @@ micrófonos: no graba ni envía audio. No reemplaza probar el paquete en otro eq
 ejecuta sin Python en PATH ni variables de configuración heredadas de Python,
 Qt u OpenAI. No modifica esas variables en el sistema ni desinstala Python.
 
+### Copia privada preconfigurada (solo con autorización del propietario)
+
+`python scripts/build_windows.py --private` crea exclusivamente en `dist/privado/`
+un `.exe` y un ZIP marcados **PRIVADO**, con la clave actual integrada. No modifica
+ni reemplaza la versión pública. Esta opción no crea una clave nueva y nunca la
+imprime: utiliza `OPENAI_API_KEY` o la entrada correspondiente de `.env.local`, sin
+copiar otras variables. El archivo de preparación se elimina al terminar la compilación.
+El ejecutable y los intermedios de `build/windows-private/` contienen la clave;
+deben permanecer privados y fuera de Git. **La clave se puede extraer del ejecutable**:
+esta integración no es cifrado ni protección frente a quien reciba el archivo.
+
+La copia privada abre en modo OpenAI, sin peticiones al iniciar. Solo las preguntas
+y el dictado gastan créditos; las frases pasivas siguen siendo locales. Se puede
+cambiar a modo local en el menú o arrancar con `--local`. Una variable de entorno
+o configuración externa puede reemplazar la clave integrada. Revocarla deja sin
+acceso a todas las copias que dependan de ella.
+
+Para verificar sin gasto: `pwsh -File scripts/verify_portable.ps1 -Executable dist/privado/AsistenteVirtual-Privado.exe`.
+El informe comprueba que se carga sin configuración externa y muestra únicamente
+su presencia, nunca el valor. No se hacen solicitudes reales.
+
 El ZIP conserva licencias de terceros. PyQt6 utiliza [GPLv3 o licencia comercial](https://riverbankcomputing.com/software/pyqt/).
 Antes de distribuir públicamente o comercializar, debe resolverse el cumplimiento
 de esas licencias y la disponibilidad del código fuente; este empaquetado no cambia
 la licencia del proyecto ni concede derechos adicionales sobre los audios.
+
+## Asistente de concentración (Windows)
+
+Actívalo con clic derecho en el gato → **Asistente de concentración**. Está apagado
+al iniciar. Detecta Instagram y TikTok por el dominio de la pestaña activa en Chrome
+o Edge; el gato camina y salta hacia su X y solicita cerrar únicamente esa pestaña.
+También cierra la última pestaña, por autorización del propietario: esto puede
+cerrar esa ventana del navegador, pero no otras ventanas. Puede perderse un
+borrador sin guardar: úsalo cuando no estés redactando contenido en esas páginas.
+
+Si no se mueve, pulsa **Concentración · 1.0 final · Ver estado** en ese mismo menú:
+el gato explica si no puede leer la barra de direcciones,
+no encuentra la X o el navegador no está en primer plano. Ese mensaje es local.
+Un borrador en el cuadro del gato ya no suspende este modo mientras usas el navegador;
+sí se pausa cuando estás escribiendo en la propia mascota.
+La v3 corrige la etiqueta de Chrome en español con un espacio final, observada en
+el navegador real, que antes impedía reconocer su barra de direcciones.
+La v4 permite cerrar Instagram incluso en su login y siendo la única pestaña.
+La trayectoria usa un temporizador preciso de 16 ms, curvas suaves y la pata como
+punto de contacto con la X, sin limitar el salto por el borde superior de la pantalla.
+
+Cambiar de página, pestaña o ventana cancela la acción. También puedes pulsar Esc
+durante la animación o desactivar el modo desde el menú. Si la X no está disponible
+(por ejemplo, pestaña fijada, pantalla completa, idioma no reconocido o accesibilidad
+deshabilitada), no hace clic a ciegas. Compatible con controles en español e inglés;
+no controla las aplicaciones nativas ni otros navegadores.
+
+Todo es local y no consume API. El auxiliar de Windows solo se ejecuta con el modo
+activo; no almacena historial, URLs ni contenido web. Se usa UI Automation para
+validar la pestaña de nuevo antes de invocar su botón, sin mover el cursor ni usar
+atajos globales. Un fallo o bloqueo del auxiliar desactiva el modo de forma segura.
 
 ## Verificación sin API
 

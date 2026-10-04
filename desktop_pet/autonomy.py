@@ -151,6 +151,7 @@ class CatAutonomy:
     def busy(self):
         w = self.window
         return (w._closing or not w.isVisible() or w._drag_offset is not None or w.petting or w.sleeping
+                or (getattr(w, 'concentration', None) and w.concentration.active)
                 or w.menu.isVisible() or w.input.hasFocus() or bool(w.input.text())
                 or w.bubble.hasSelectedText() or w.worker is not None or w.voice_busy
                 or w.talking_timer.isActive()

@@ -1,0 +1,18 @@
+ASISTENTE VIRTUAL - COPIA PRIVADA CON CLAVE INCLUIDA
+
+Abre AsistenteVirtual-Privado.exe. No necesitas Python ni configurar una clave.
+Esta copia empieza en modo OpenAI. Las preguntas escritas y el dictado consumen
+creditos de la cuenta del propietario. No hace consultas al iniciar; las frases
+pasivas, animaciones y sonidos son locales. Clic derecho para cambiar a modo local.
+Tambien puedes iniciarla con --local.
+
+PRIVADO: NO SUBIR A GITHUB NI PUBLICAR
+La clave incluida ES EXTRAIBLE. El ejecutable no cifra ni protege la clave de
+quien tenga acceso al archivo. No reenvies esta copia fuera del grupo autorizado.
+Si se filtra, el propietario debe revocar la clave; todas estas copias dejaran de
+poder usarla. El archivo no esta firmado digitalmente.
+
+Requiere Windows x64, internet para la IA y microfono con permiso para dictar.
+Conserva las licencias incluidas. Este paquete no cambia las licencias del proyecto
+ni de terceros; antes de distribucion publica o comercial deben revisarse sus
+obligaciones. Esta copia solo se prepara para el uso privado autorizado.

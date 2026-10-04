@@ -8,6 +8,18 @@ from launcher import launch
 
 
 class LauncherTests(unittest.TestCase):
+    def test_private_default_mode_and_explicit_local_override(self):
+        from main import main
+        for arguments, embedded, expected in (([], '', False), ([], 'private-value', True),
+                                              (['--local'], 'private-value', False)):
+            with self.subTest(arguments=arguments, expected=expected), \
+                    patch('main.sys.argv', ['pet.exe', *arguments]), \
+                    patch('main.embedded_api_key', return_value=embedded), \
+                    patch('main.QApplication') as app, patch('main.PetWindow') as window:
+                app.return_value.exec.return_value = 0
+                self.assertEqual(main(), 0)
+                window.assert_called_once_with(live=expected)
+
     def test_failed_import_report_does_not_include_exception_contents(self):
         with TemporaryDirectory() as folder:
             target = Path(folder) / 'report.json'

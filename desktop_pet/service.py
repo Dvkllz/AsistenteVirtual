@@ -5,7 +5,7 @@ from contextlib import nullcontext
 
 import openai
 
-from desktop_pet.paths import local_config_path
+from desktop_pet.paths import embedded_api_key, local_config_path
 
 MAX_QUESTION_CHARS = 800
 MAX_OUTPUT_TOKENS = 120
@@ -46,7 +46,8 @@ def _local_env_value(name: str) -> str:
 def config_value(name: str) -> str:
     if name in os.environ:
         return os.environ[name].strip()
-    return _local_env_value(name)
+    value = _local_env_value(name)
+    return value or (embedded_api_key() if name == 'OPENAI_API_KEY' else '')
 
 
 def has_openai_key() -> bool:
