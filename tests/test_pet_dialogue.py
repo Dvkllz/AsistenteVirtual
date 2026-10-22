@@ -6,6 +6,15 @@ from desktop_pet.service import DOG_PROMPT, SYSTEM_PROMPT, answer_question, syst
 
 
 class PetDialogueTests(unittest.TestCase):
+    def test_passive_lines_are_species_specific_local_and_unique(self):
+        from desktop_pet.autonomy import passive_lines, QUIPS, DOG_QUIPS
+        self.assertEqual(passive_lines('siamese'), QUIPS)
+        self.assertEqual(passive_lines('golden'), DOG_QUIPS)
+        self.assertGreaterEqual(len(DOG_QUIPS), 20)
+        self.assertEqual(len(DOG_QUIPS), len(set(DOG_QUIPS)))
+        self.assertFalse(set(DOG_QUIPS) & set(QUIPS))
+        self.assertNotIn('atún', ' '.join(DOG_QUIPS))
+
     def test_personalities_are_separate_and_unknown_ids_fall_back(self):
         self.assertEqual(system_prompt('siamese'), SYSTEM_PROMPT)
         self.assertEqual(system_prompt('unknown'), SYSTEM_PROMPT)

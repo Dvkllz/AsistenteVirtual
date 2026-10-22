@@ -291,7 +291,9 @@ class Concentration:
             self.cooldown = time.monotonic() + 20
             self._status('closed' if completed else 'cancelled')
             if completed:
-                self.window.show_response('Te ahorré cuarenta minutos. De nada.')
+                self.window.show_response(
+                    '¡Listo! Quité esa distracción. Vamos con lo que querías hacer.'
+                    if self.window.pet.friendly else 'Te ahorré cuarenta minutos. De nada.')
             return
         target = result.get('target')
         point = target_point(target, QApplication.screens()) if isinstance(target, dict) else None

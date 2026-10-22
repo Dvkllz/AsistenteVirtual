@@ -41,6 +41,38 @@ QUIPS = (
     "Qué bonito escritorio. Sería una pena acostarse encima de todo.",
 )
 
+DOG_QUIPS = (
+    '¡Aquí estoy! Una tarea a la vez, que vamos bien.',
+    'Si necesitas compañía, tengo la agenda libre para ti.',
+    'Hoy puede ser un buen día para dar ese primer paso.',
+    'Un poquito de agua y seguimos. Yo cuido el escritorio.',
+    'Estoy practicando traer archivos. Por ahora solo traigo alegría.',
+    'Tu siguiente descanso podría incluir estirarte un poquito.',
+    'No hace falta hacerlo perfecto para empezar.',
+    '¡Buen equipo! Tú pones las ideas y yo muevo la cola.',
+    'Si aparece una pelota en esta pantalla, avísame primero.',
+    'Me alegra acompañarte, incluso cuando toca trabajar.',
+    'Cada paso pequeño cuenta. Los míos tienen cuatro patas.',
+    'Una pausa corta también es parte de avanzar.',
+    'Estoy atento por si necesitas una patita.',
+    '¿Un paseo después? Primero terminamos esto juntos.',
+    'Te guardé un lugar junto a mi siesta.',
+    'Hoy mi misión es sencilla: hacerte compañía.',
+    'Respira un momento. Podemos ir con calma.',
+    'Ese ratón parece una pelota con ambiciones.',
+    '¡Otra oportunidad para aprender algo nuevo!',
+    'A veces la mejor idea llega después de descansar.',
+    'No puedo traer café, pero sí mucho entusiasmo.',
+    'Estoy orgulloso de que sigas intentándolo.',
+    'Tengo energía para un paseo y paciencia para acompañarte.',
+    'Cuando termines, celebramos con una vuelta por el escritorio.',
+)
+
+
+def passive_lines(pet_id='siamese'):
+    from desktop_pet.pets import get_pet
+    return DOG_QUIPS if get_pet(pet_id).friendly else QUIPS
+
 
 def mouse_button_down():
     if QApplication.mouseButtons() != Qt.MouseButton.NoButton:
@@ -202,7 +234,7 @@ class CatAutonomy:
         if (now >= self.next_quip and now - w._last_response_at >= 20
                 and not w.talking_timer.isActive()):
             self.next_quip = now + self.rng.uniform(45, 90)
-            choices = [quip for quip in QUIPS if quip != self.last_quip]
+            choices = [quip for quip in passive_lines(w.pet.id) if quip != self.last_quip]
             self.last_quip = self.rng.choice(choices)
             w._on_answer(self.last_quip)
 
