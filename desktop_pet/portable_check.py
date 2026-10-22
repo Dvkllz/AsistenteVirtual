@@ -61,6 +61,18 @@ def run(app, report_path):
             assert window.dialogue_frame.isVisible()
             assert window.microphone.source is None
             result['checks'].extend(['all_sprites', 'pixel_fonts', 'compact_layout', 'local_answer_thread'])
+            assert window.set_pet('golden')
+            assert window.pet.id == 'golden'
+            assert len(window.sprites.frames) == 24
+            assert all(not frame.isNull() for frame in window.sprites.frames.values())
+            assert not window.purr.enabled and not window.sounds.feline
+            window.input.setText('Hola')
+            window.send_button.click()
+            wait_until(lambda: window.worker is None)
+            assert 'te acompaño' in window.bubble.text()
+            assert window.set_pet('siamese')
+            assert window.sounds.feline
+            result['checks'].append('golden_atlas_switch_personality_and_restore')
             assert not window.concentration.enabled
             assert not window.concentration_action.isChecked()
             from desktop_pet.concentration import FocusBridge

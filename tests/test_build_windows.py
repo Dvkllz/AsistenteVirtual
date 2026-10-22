@@ -9,6 +9,12 @@ from scripts.build_windows import build_environment, stage_private_key
 
 
 class BuildEnvironmentTests(unittest.TestCase):
+    def test_spec_explicitly_includes_both_pets_without_wildcard_config(self):
+        source = (Path(__file__).resolve().parent.parent / 'AsistenteVirtual.spec').read_text(encoding='utf-8')
+        self.assertIn("'assets/golden/atlas.png'", source)
+        self.assertIn("'assets/siamese/*.png'", source)
+        self.assertNotIn("'assets/**/*'", source)
+
     def test_private_staging_copies_only_key_not_other_configuration(self):
         with TemporaryDirectory() as folder:
             root = Path(folder)
