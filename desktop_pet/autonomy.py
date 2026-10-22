@@ -319,7 +319,8 @@ class CatAutonomy:
 
     def mouth_offset(self):
         w = self.window
-        return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * 65, 44)
+        dx, y = (62, 46) if w.pet.friendly else (65, 44)
+        return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * dx, y)
 
     def carry_interrupted(self, cursor=None):
         if cursor is None:

@@ -119,3 +119,25 @@ class PetSwitchingTests(unittest.TestCase):
             w.microphone.recording = False
             w._voice_controls()
         self.assertTrue(w.pet_menu.isEnabled())
+
+    def test_dog_does_not_meow_or_purr_and_cat_preference_is_preserved(self):
+        self.settings.setValue('sound/purr', True)
+        w = self.make_window()
+        w.set_pet('golden')
+        self.assertFalse(w.purr.enabled)
+        self.assertFalse(w.purr_action.isEnabled())
+        self.assertIn('perro', w.sounds_action.text())
+        self.assertIn('patita', w.cursor_push_action.text())
+        self.assertTrue(self.settings.value('sound/purr', type=bool))
+        w.sounds.set_enabled(True)
+        with patch.object(w.sounds, '_play') as play:
+            w.sounds.start_speech()
+            play.assert_not_called()
+            w.sounds.set_walking(True)
+            play.assert_called_once_with('walk')
+        w.sounds.set_enabled(False)
+        w.set_pet('siamese')
+        self.assertTrue(w.purr.enabled)
+        self.assertTrue(w.purr_action.isChecked())
+        self.assertTrue(w.purr_action.isEnabled())
+        self.assertTrue(w.sounds.feline)

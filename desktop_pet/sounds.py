@@ -17,6 +17,7 @@ class CatSounds(QObject):
     def __init__(self, parent=None, *, enabled=True):
         super().__init__(parent)
         self.enabled = enabled
+        self.feline = True
         self.walking = False
         self.speaking = False
         self.last_meow = None
@@ -54,9 +55,15 @@ class CatSounds(QObject):
         self.speaking = True
         for name in MEOWS:
             self.players[name].stop()
-        if self.enabled:
+        if self.enabled and self.feline:
             self.last_meow = self.rng.choice([name for name in MEOWS if name != self.last_meow])
             self._play(self.last_meow)
+
+    def set_pet(self, pet_id):
+        """Shared footsteps/close effects remain; feline vocals never play for a dog."""
+        self.stop_speech()
+        self.set_walking(False)
+        self.feline = pet_id != 'golden'
 
     def stop_speech(self, *, completed=False):
         self.speaking = False

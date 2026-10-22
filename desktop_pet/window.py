@@ -368,7 +368,24 @@ class PetWindow(QWidget):
         self.naps = CatNaps(self)
         self.concentration = Concentration(self)
         self.concentration_action.toggled.connect(self.concentration.set_enabled)
+        self._apply_pet_labels()
         QTimer.singleShot(0, self._start_motion)
+
+    def _apply_pet_labels(self):
+        dog = self.pet.friendly
+        self.sounds.set_pet(self.pet.id)
+        self.sounds_action.setText('Sonidos del perro' if dog else 'Sonidos del gato')
+        self.sounds_action.setToolTip('Pasos y efecto al cerrar; sin maullidos.' if dog else
+                                      'Maullidos, pasos y efecto al cerrar.')
+        self.purr.set_enabled(not dog and self.settings.value('sound/purr', True, type=bool))
+        self.purr_action.blockSignals(True)
+        self.purr_action.setChecked(self.purr.enabled)
+        self.purr_action.blockSignals(False)
+        self.purr_action.setEnabled(not dog)
+        self.purr_action.setText('Ronroneo (solo gato)' if dog else 'Ronroneo al acariciar')
+        self.purr_action.setToolTip('El golden disfruta las caricias con su propia pose, sin ronronear.')
+        self.cursor_push_action.setText('Empujar cursor con la patita' if dog else 'Empujar cursor al dar zarpazo')
+        self.character.setAccessibleName(self.pet.label + '; arrastra para lanzar; pasa el ratón sobre la cabeza para acariciar')
 
     def set_pet(self, pet_id: str) -> bool:
         """Swap only at an interaction boundary; never mix an in-flight answer's persona."""
@@ -397,6 +414,7 @@ class PetWindow(QWidget):
         self.pet_actions[target.id].setChecked(True)
         self.settings.setValue('pet/selected', target.id)
         self.settings.sync()
+        self._apply_pet_labels()
         self._refresh_sprite()
         self._start_motion()
         return True
@@ -603,7 +621,7 @@ class PetWindow(QWidget):
         self.settings.sync()
 
     def set_purr_enabled(self, enabled: bool) -> None:
-        self.purr.set_enabled(enabled)
+        self.purr.set_enabled(enabled and not self.pet.friendly)
         self.settings.setValue("sound/purr", enabled)
         self.settings.sync()
 
@@ -611,6 +629,9 @@ class PetWindow(QWidget):
         # Normalized regions in the existing 512px sprites, mirrored with the cat.
         x, y, width, height = ((.76, .16, .23, .34) if self.sprite_state == "walking"
                                else (.38, .04, .46, .34))
+        if self.pet.friendly:
+            x, y, width, height = ((.68, .26, .27, .32) if self.sprite_state == 'walking'
+                                   else (.50, .03, .33, .36))
         if self.facing < 0:
             x = 1 - x - width
         pixmap = self.character.pixmap()
@@ -649,7 +670,8 @@ class PetWindow(QWidget):
                 self._stop_motion()
             self.petting = True
             self.pet_timer.start()
-            self.purr.start()
+            if not self.pet.friendly:
+                self.purr.start()
             self._refresh_sprite()
 
     def event(self, event) -> bool:

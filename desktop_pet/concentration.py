@@ -327,7 +327,10 @@ class Concentration:
         self.started = time.monotonic()
         self.origin = w.character.mapToGlobal(QPoint(w.character.width()//2-76, 0))
         self.direction = 1 if point.x() >= self.origin.x()+76 else -1
-        self.destination = point - paw_offset(self.direction)
+        contact = paw_offset(self.direction)
+        if w.pet.friendly:
+            contact = QPoint(130 if self.direction > 0 else 22, 52)
+        self.destination = point - contact
         # Allow the ears above the monitor edge: clamping the whole rectangle
         # kept the paw below the X on maximized browsers.
         w.character.hide()
