@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QPainter, QPixmap, QTransform
 
 SPRITE_DIR = Path(__file__).resolve().parent.parent / "assets" / "siamese"
@@ -80,3 +80,56 @@ class SpriteSet:
 
     def pixmap(self, state: str, direction: int = 1, frame: int = 0) -> QPixmap:
         return self.frames[state, -1 if direction < 0 else 1, frame % len(FRAME_FILES[state])]
+
+
+class AtlasSpriteSet(SpriteSet):
+    """Load twelve atlas poses once; all frames share a 152x112 logical canvas."""
+    CELLS = {'idle': (0,), 'talking': (1,), 'petting': (2,), 'sleeping': (3,),
+             'walking': (4, 5, 6, 7), 'falling': (8, 9, 10, 11)}
+
+    def __init__(self, directory: Path):
+        atlas = QPixmap(str(directory / 'atlas.png'))
+        self.frames = {}
+        self.missing = []
+        self.missing_animation = []
+        if atlas.isNull() or atlas.width() % 4 or atlas.height() % 3:
+            raise ValueError('El atlas de la mascota no está disponible o no es válido.')
+        cell_w, cell_h = atlas.width() // 4, atlas.height() // 3
+        cells, bounds = {}, {}
+        for index in range(12):
+            cells[index] = atlas.copy(index % 4 * cell_w, index // 4 * cell_h, cell_w, cell_h)
+            # Alpha bounds are computed only at load, never on animation ticks.
+            im = cells[index].toImage()
+            points = [(x, y) for y in range(cell_h) for x in range(cell_w)
+                      if im.pixelColor(x, y).alpha() > 128]
+            if not points:
+                raise ValueError('Falta una pose en el atlas de la mascota.')
+            xs, ys = zip(*points)
+            bounds[index] = QRect(min(xs), min(ys), max(xs)-min(xs)+1, max(ys)-min(ys)+1)
+        # A single scale per animation prevents walking/sitting from pulsing.
+        groups = ((0, 1, 2), (3,), (4, 5, 6, 7), (8, 9, 10, 11))
+        targets = ((112, 100), (118, 57), (140, 82), (140, 100))
+        scales = {}
+        for indices, (width, height) in zip(groups, targets):
+            scale = min(width / max(bounds[i].width() for i in indices),
+                        height / max(bounds[i].height() for i in indices))
+            scales.update({i: scale for i in indices})
+        for state, indices in self.CELLS.items():
+            for frame, index in enumerate(indices):
+                crop = cells[index].copy(bounds[index])
+                scaled = crop.scaled(round(crop.width()*scales[index]), round(crop.height()*scales[index]),
+                                     Qt.AspectRatioMode.KeepAspectRatio,
+                                     Qt.TransformationMode.SmoothTransformation)
+                right = QPixmap(152, 112)
+                right.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(right)
+                painter.drawPixmap((152-scaled.width())//2, 110-scaled.height(), scaled)
+                painter.end()
+                self.frames[state, 1, frame] = right
+                self.frames[state, -1, frame] = right.transformed(QTransform().scale(-1, 1))
+
+
+def load_pet_sprites(pet_id='siamese'):
+    from desktop_pet.pets import get_pet
+    profile = get_pet(pet_id)
+    return AtlasSpriteSet(profile.directory) if profile.id == 'golden' else SpriteSet(profile.directory)
