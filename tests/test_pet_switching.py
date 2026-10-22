@@ -7,7 +7,8 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QEvent, QPointF, QSettings, Qt
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 from desktop_pet.window import PetWindow
@@ -119,6 +120,42 @@ class PetSwitchingTests(unittest.TestCase):
             w.microphone.recording = False
             w._voice_controls()
         self.assertTrue(w.pet_menu.isEnabled())
+
+    def test_dog_head_strokes_activate_pose_and_click_still_grabs(self):
+        w = self.make_window()
+        w.set_pet('golden')
+        with patch.object(w.purr, 'start') as purr:
+            for offset in (-8, 8, -8):
+                point = QPointF(w._head_rect().center()) + QPointF(offset, 0)
+                self.app.sendEvent(w.character, QMouseEvent(
+                    QEvent.Type.MouseMove, point, QPointF(w.character.mapToGlobal(point.toPoint())),
+                    Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+            self.assertTrue(w.petting)
+            self.assertEqual(w.sprite_state, 'petting')
+            purr.assert_not_called()
+        QTest.mousePress(w.character, Qt.MouseButton.LeftButton)
+        self.assertFalse(w.petting)
+        self.assertIsNotNone(w._drag_offset)
+        self.assertEqual(w.sprite_state, 'falling')
+        QTest.mouseRelease(w.character, Qt.MouseButton.LeftButton)
+        self.assertIsNone(w._drag_offset)
+
+    def test_transcript_automatically_uses_dog_without_confirmation(self):
+        w = self.make_window()
+        w.set_pet('golden')
+        with patch('desktop_pet.window.answer_question', return_value='¡Cuenta conmigo!') as answer:
+            w._on_transcript('¿Me ayudas?')
+            w._voice_finished()
+            self.wait(lambda: w.worker is None)
+        self.assertEqual(answer.call_args.kwargs['pet_id'], 'golden')
+        self.assertEqual(w.bubble.text(), '¡Cuenta conmigo!')
+
+    def test_saved_golden_starts_without_feline_sounds(self):
+        self.settings.setValue('pet/selected', 'golden')
+        w = self.make_window()
+        self.assertEqual(w.pet.id, 'golden')
+        self.assertFalse(w.sounds.feline)
+        self.assertFalse(w.purr.enabled)
 
     def test_dog_does_not_meow_or_purr_and_cat_preference_is_preserved(self):
         self.settings.setValue('sound/purr', True)

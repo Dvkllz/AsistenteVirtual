@@ -181,6 +181,26 @@ class ConcentrationTests(unittest.TestCase):
                 self.assertFalse(self.c.active)
         self.assertFalse(any(r[0] == 'close' for r in self.bridge.requests))
 
+    def test_golden_uses_own_overlay_and_friendly_completion(self):
+        self.w.set_pet('golden')
+        self.begin()
+        self.c.started -= 3
+        self.c._tick()
+        expected = self.w.sprites.pixmap('falling', self.c.direction, 2)
+        self.assertEqual(self.c.overlay.pixmap().toImage(), expected.toImage())
+        self.probe(self.target)
+        self.assertEqual(self.bridge.requests[-1], ('close', 'opaque-token'))
+        self.bridge.message.emit({'closed': True})
+        self.assertIn('Vamos', self.w.bubble.text())
+        self.assertNotIn('De nada', self.w.bubble.text())
+
+    def test_switching_pet_cancels_concentration_overlay(self):
+        self.begin()
+        self.assertTrue(self.w.set_pet('golden'))
+        self.assertFalse(self.c.active)
+        self.assertFalse(self.c.overlay.isVisible())
+        self.assertFalse(self.w.character.isHidden())
+
     def test_browser_switched_or_unknown_target_cancels(self):
         self.begin()
         self.probe(None)

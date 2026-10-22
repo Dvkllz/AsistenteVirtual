@@ -567,7 +567,8 @@ class WindowTests(unittest.TestCase):
 
     def test_first_words_are_visible_before_completion_with_one_meow(self):
         gate = threading.Event()
-        def stream(question, *, live, on_partial, session):
+        def stream(question, *, live, on_partial, session, pet_id):
+            self.assertEqual(pet_id, 'siamese')
             on_partial('Ya estoy')
             gate.wait(2)
             on_partial('Ya estoy respondiendo.')
@@ -594,7 +595,8 @@ class WindowTests(unittest.TestCase):
 
     def test_close_after_first_words_waits_for_worker_and_ignores_late_text(self):
         gate = threading.Event()
-        def stream(question, *, live, on_partial, session):
+        def stream(question, *, live, on_partial, session, pet_id):
+            self.assertEqual(pet_id, 'siamese')
             on_partial('Primera parte')
             gate.wait(2)
             on_partial('Texto tardío')
