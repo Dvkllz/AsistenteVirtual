@@ -11,7 +11,8 @@ from PyQt6.QtWidgets import (
 
 from desktop_pet.service import ApiSession, MAX_QUESTION_CHARS, PetServiceError, answer_question, has_openai_key
 from desktop_pet.physics import Body, DragVelocity
-from desktop_pet.sprites import SPRITE_DIR, SpriteSet, select_state, select_frame
+from desktop_pet.sprites import SPRITE_DIR, load_pet_sprites, select_state, select_frame
+from desktop_pet.pets import PETS, get_pet
 from desktop_pet.autonomy import CatAutonomy
 from desktop_pet.purring import PurrSound
 from desktop_pet.petting import HeadStrokes
@@ -60,6 +61,7 @@ class PetWindow(QWidget):
         self.live = live
         self._custom_responder = responder
         self.settings = settings or QSettings()
+        self.pet = get_pet(self.settings.value('pet/selected', 'siamese'))
         self.worker: AnswerThread | None = None
         self.voice_worker: AnswerThread | None = None
         self.api_session = ApiSession()
@@ -94,7 +96,13 @@ class PetWindow(QWidget):
         self._sprite_state_started = time.monotonic()
         self._jump_started = None
         self._sprite_key = None
-        self.sprites = SpriteSet()
+        self._sprite_sets = {}
+        try:
+            self.sprites = load_pet_sprites(self.pet.id)
+        except ValueError:
+            self.pet = get_pet()
+            self.sprites = load_pet_sprites(self.pet.id)
+        self._sprite_sets[self.pet.id] = self.sprites
         self.talking_timer = QTimer(self)
         self.talking_timer.setSingleShot(True)
         self.talking_timer.timeout.connect(lambda: self._end_speaking(completed=True))
@@ -281,6 +289,18 @@ class PetWindow(QWidget):
         self.live_action.triggered.connect(lambda checked: checked and self.set_mode(True))
         self.response_menu = self.menu.addMenu("Modo de respuesta")
         self.response_menu.addActions((self.demo_action, self.live_action))
+        self.pet_menu = self.menu.addMenu('Cambiar mascota')
+        self.pet_menu.setToolTip('La selección se recuerda. Espera a terminar la pregunta o el dictado para cambiar.')
+        self.pet_group = QActionGroup(self)
+        self.pet_group.setExclusive(True)
+        self.pet_actions = {}
+        for pet_id, profile in PETS.items():
+            action = QAction(profile.label, self, checkable=True)
+            action.setChecked(pet_id == self.pet.id)
+            action.triggered.connect(lambda checked, choice=pet_id: checked and self.set_pet(choice))
+            self.pet_group.addAction(action)
+            self.pet_menu.addAction(action)
+            self.pet_actions[pet_id] = action
         self.concentration_action = QAction('Asistente de concentración', self, checkable=True)
         self.concentration_action.setToolTip(
             'Cierra la pestaña activa de Instagram/TikTok en Chrome o Edge. '
@@ -349,6 +369,37 @@ class PetWindow(QWidget):
         self.concentration = Concentration(self)
         self.concentration_action.toggled.connect(self.concentration.set_enabled)
         QTimer.singleShot(0, self._start_motion)
+
+    def set_pet(self, pet_id: str) -> bool:
+        """Swap only at an interaction boundary; never mix an in-flight answer's persona."""
+        target = get_pet(pet_id)
+        if self._closing or self.worker is not None or self.voice_busy or self._drag_offset is not None:
+            self.pet_actions[self.pet.id].setChecked(True)
+            return False
+        if target.id == self.pet.id:
+            self.pet_actions[self.pet.id].setChecked(True)
+            return True
+        try:
+            if target.id not in self._sprite_sets:
+                self._sprite_sets[target.id] = load_pet_sprites(target.id)
+        except ValueError:
+            self.pet_actions[self.pet.id].setChecked(True)
+            self._show_status('No se encontraron los sprites de esa mascota.')
+            return False
+        self._pause_motion()
+        self._cancel_walk()
+        self._end_speaking()
+        self._stop_motion()
+        self.pet = target
+        self.sprites = self._sprite_sets[target.id]
+        self._sprite_key = None
+        self._sprite_state_started = time.monotonic()
+        self.pet_actions[target.id].setChecked(True)
+        self.settings.setValue('pet/selected', target.id)
+        self.settings.sync()
+        self._refresh_sprite()
+        self._start_motion()
+        return True
 
     def _refresh_sprite(self) -> None:
         if not hasattr(self, "character"):
@@ -465,6 +516,7 @@ class PetWindow(QWidget):
         self.input.setEnabled(not busy)
         self.demo_action.setEnabled(not busy)
         self.live_action.setEnabled(not busy)
+        self.pet_menu.setEnabled(not busy)
         self.mic_button.setEnabled(self.worker is None and self.voice_worker is None)
         self._sync_send_button()
 
@@ -847,9 +899,10 @@ class PetWindow(QWidget):
         self._show_status("CONECTANDO…" if self.live else "RESPONDIENDO…")
         self.mic_button.setEnabled(False)
         self._partial_answer_received = False
+        pet_id = self.pet.id
         responder = self._custom_responder or (
             lambda value, partial: answer_question(
-                value, live=self.live, on_partial=partial, session=self.api_session))
+                value, live=self.live, on_partial=partial, session=self.api_session, pet_id=pet_id))
         self.worker = AnswerThread(question, responder, self, streaming=self._custom_responder is None)
         self.worker.partial.connect(self._on_partial_answer)
         self.worker.answered.connect(self._on_answer)
@@ -858,6 +911,7 @@ class PetWindow(QWidget):
         self.worker.start()
         self.demo_action.setEnabled(False)
         self.live_action.setEnabled(False)
+        self.pet_menu.setEnabled(False)
 
     @pyqtSlot(str)
     def show_response(self, text: str) -> None:

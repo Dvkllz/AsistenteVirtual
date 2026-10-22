@@ -1,0 +1,121 @@
+import os
+import threading
+import time
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+from PyQt6.QtCore import QSettings
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication
+from desktop_pet.window import PetWindow
+
+
+class PetSwitchingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+        cls.app.setQuitOnLastWindowClosed(False)
+
+    def setUp(self):
+        self.temp = TemporaryDirectory()
+        self.settings = QSettings(str(Path(self.temp.name)/'prefs.ini'), QSettings.Format.IniFormat)
+        for key in ('physics/enabled', 'sound/effects', 'sound/purr', 'autonomy/enabled', 'nap/enabled'):
+            self.settings.setValue(key, False)
+        self.guard = patch('socket.socket.connect', side_effect=AssertionError('No network'))
+        self.guard.start()
+        self.windows = []
+
+    def make_window(self, **kwargs):
+        w = PetWindow(settings=self.settings, **kwargs)
+        self.windows.append(w)
+        w.show()
+        self.app.processEvents()
+        return w
+
+    def wait(self, predicate):
+        deadline = time.monotonic()+5
+        while not predicate() and time.monotonic()<deadline:
+            QTest.qWait(10)
+        self.assertTrue(predicate())
+
+    def tearDown(self):
+        for w in self.windows:
+            self.wait(lambda: w.worker is None and w.voice_worker is None)
+            w.close()
+            w.deleteLater()
+        self.app.processEvents()
+        self.guard.stop()
+        self.temp.cleanup()
+
+    def test_selector_remembers_choice_and_preserves_draft_position_and_settings(self):
+        w = self.make_window()
+        position = w.pos()
+        w.input.setText('Mi borrador')
+        w.pet_actions['golden'].trigger()
+        self.assertEqual(w.pet.id, 'golden')
+        self.assertTrue(w.pet_actions['golden'].isChecked())
+        self.assertFalse(w.pet_actions['siamese'].isChecked())
+        self.assertEqual(w.input.text(), 'Mi borrador')
+        self.assertEqual(w.pos(), position)
+        self.assertFalse(w.physics_enabled)
+        self.assertEqual(self.make_window().pet.id, 'golden')
+        golden = w.sprites
+        w.set_pet('siamese')
+        w.set_pet('golden')
+        self.assertIs(w.sprites, golden)
+
+    def test_request_uses_selected_pet_and_selector_is_locked_until_finished(self):
+        gate = threading.Event()
+        calls = []
+        def respond(question, **kwargs):
+            calls.append(kwargs['pet_id'])
+            gate.wait(2)
+            return '¡Vamos juntos!'
+        w = self.make_window()
+        w.set_pet('golden')
+        with patch('desktop_pet.window.answer_question', side_effect=respond):
+            w.input.setText('Hola')
+            w.submit()
+            try:
+                self.assertFalse(w.pet_menu.isEnabled())
+                self.assertFalse(w.set_pet('siamese'))
+                self.assertEqual(w.pet.id, 'golden')
+            finally:
+                gate.set()
+                self.wait(lambda: w.worker is None)
+        self.assertEqual(calls, ['golden'])
+        self.assertTrue(w.pet_menu.isEnabled())
+        self.assertTrue(w.set_pet('siamese'))
+
+    def test_switch_clears_old_dialogue_and_sleep_without_clearing_input(self):
+        w = self.make_window()
+        w.show_response('Frase del gato.')
+        w.sleeping = True
+        w.input.setText('Pregunta pendiente')
+        self.assertTrue(w.set_pet('golden'))
+        self.assertFalse(w.sleeping)
+        self.assertFalse(w.talking_timer.isActive())
+        self.assertFalse(w.dialogue_frame.isVisible())
+        self.assertEqual(w.input.text(), 'Pregunta pendiente')
+
+    def test_missing_atlas_keeps_current_pet(self):
+        w = self.make_window()
+        with patch('desktop_pet.window.load_pet_sprites', side_effect=ValueError('missing')):
+            self.assertFalse(w.set_pet('golden'))
+        self.assertEqual(w.pet.id, 'siamese')
+        self.assertTrue(w.pet_actions['siamese'].isChecked())
+
+    def test_recording_blocks_switch_without_recording_real_audio(self):
+        w = self.make_window()
+        w.microphone.recording = True
+        try:
+            w._voice_controls()
+            self.assertFalse(w.pet_menu.isEnabled())
+            self.assertFalse(w.set_pet('golden'))
+        finally:
+            w.microphone.recording = False
+            w._voice_controls()
+        self.assertTrue(w.pet_menu.isEnabled())
