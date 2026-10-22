@@ -6,6 +6,7 @@ from contextlib import nullcontext
 import openai
 
 from desktop_pet.paths import embedded_api_key, local_config_path
+from desktop_pet.pets import DEFAULT_PET, get_pet
 
 MAX_QUESTION_CHARS = 800
 MAX_OUTPUT_TOKENS = 120
@@ -25,6 +26,24 @@ SYSTEM_PROMPT = (
     "palabras. Usa texto plano, sin Markdown. No inventes capacidades: solo puedes "
     "responder texto, no ver la pantalla ni controlar el equipo."
 )
+
+
+DOG_PROMPT = (
+    "Eres una mascota virtual de escritorio: un perro golden retriever amigable, "
+    "alegre, paciente y cariñoso. Responde en español salvo que te pidan otro idioma. "
+    "Ayuda con claridad y anima con naturalidad, sin sarcasmo, burlas ni condescendencia. "
+    "Puedes hacer una broma amable sobre paseos o pelotas, nunca a costa del usuario. "
+    "Dirígete de tú, sin vocativos ni apodos: no digas 'humano', 'humana' ni 'mortal'. "
+    "Ante angustia, emergencias o temas sensibles, responde con empatía y sin bromas. "
+    "No sacrifiques la precisión por simpatía; reconoce lo que no sabes. "
+    "Responde en una o dos frases, con un máximo de 45 palabras. Usa texto plano, "
+    "sin Markdown. No inventes capacidades: solo puedes responder texto, "
+    "no ver la pantalla ni controlar el equipo."
+)
+
+
+def system_prompt(pet_id=DEFAULT_PET):
+    return DOG_PROMPT if get_pet(pet_id).friendly else SYSTEM_PROMPT
 
 
 class PetServiceError(Exception):
@@ -90,13 +109,16 @@ def _stream_response(client, parameters, on_partial):
     return final, text
 
 
-def answer_question(question: str, *, live: bool = False, on_partial=None, session=None) -> str:
+def answer_question(question: str, *, live: bool = False, on_partial=None, session=None,
+                    pet_id=DEFAULT_PET) -> str:
     question = question.strip()
     if not question:
         raise PetServiceError("Primero escribe algo. Aún no leo mentes.")
     if len(question) > MAX_QUESTION_CHARS:
         raise PetServiceError(f"Máximo {MAX_QUESTION_CHARS} caracteres por pregunta.")
     if not live:
+        if get_pet(pet_id).friendly:
+            return "Respuesta de prueba: ¡Aquí estoy para ayudarte! Vamos paso a paso; yo te acompaño."
         return "Respuesta de prueba: estoy listo para ayudarte. Mi talento para fingir que pienso es impecable."
 
     key = config_value("OPENAI_API_KEY")
@@ -111,7 +133,7 @@ def answer_question(question: str, *, live: bool = False, on_partial=None, sessi
         with connection as client:
             parameters = dict(
                 model=model,
-                instructions=SYSTEM_PROMPT,
+                instructions=system_prompt(pet_id),
                 input=question,
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 store=False,
