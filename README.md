@@ -1,8 +1,36 @@
-# Asistente Virtual · 1.0 final
+# Asistente Virtual · 1.1 mascotas
 
-Versión final 1.0.0: menú y submenús verdes con fuente Pixelify Sans, voz,
+Versión 1.1.0: selector de gato siamés y golden retriever, menú y submenús verdes con fuente Pixelify Sans, voz,
 física, caricias, sonidos y asistente de concentración. El repositorio contiene
 solo código y recursos; las claves y los ejecutables privados no se publican.
+
+## Cambiar mascota
+
+Clic derecho → **Cambiar mascota** → **Gato siamés · sarcástico** o
+**Golden retriever · amigable**. La elección se recuerda al reiniciar. El gato
+sigue siendo la opción predeterminada de una instalación nueva.
+
+El golden tiene doce poses propias: quieto, hablando, acariciado, dormido,
+cuatro pasos y cuatro fases de salto/caída. Comparte física, arrastre/lanzamiento,
+siestas, caricias sobre la cabeza, juego con el cursor, micrófono y concentración.
+El menú conserva sus colores verdes y Pixelify Sans. No se cambia la posición,
+el borrador escrito ni las preferencias compartidas al cambiar de mascota.
+
+Las respuestas del perro usan instrucciones amables, pacientes y sin sarcasmo;
+las del gato conservan su personalidad. El modelo y los límites de consumo no
+cambian. El dictado se envía automáticamente con la personalidad seleccionada.
+El cambio queda bloqueado durante grabación, transcripción o respuesta para no
+mezclar personajes. Al cambiar se cancelan animaciones e intervenciones pendientes.
+
+El perro tiene 24 frases pasivas locales, sin API, y un mensaje amable al completar
+una intervención de concentración. Conserva los pasos y el efecto al cerrar;
+**no maúlla ni ronronea**. Sus caricias tienen animación visual sin sonido vocal.
+El ronroneo se deshabilita solo para el perro y se recupera la preferencia del gato
+al volver. No se han añadido grabaciones de ladridos.
+
+Los sprites y el prompt de generación están en `assets/golden/`; el atlas original
+se conserva y se procesa en memoria con Qt. `scripts/preview_pets.py` genera una
+vista de todas las poses y del selector dentro de `artifacts/`, sin consumo de API.
 
 Mascota de escritorio en Python y PyQt6, inicialmente para Windows.
 Se ubica abajo a la derecha, respeta el espacio de la barra de tareas y permanece
@@ -390,7 +418,7 @@ También cierra la última pestaña, por autorización del propietario: esto pue
 cerrar esa ventana del navegador, pero no otras ventanas. Puede perderse un
 borrador sin guardar: úsalo cuando no estés redactando contenido en esas páginas.
 
-Si no se mueve, pulsa **Concentración · 1.0 final · Ver estado** en ese mismo menú:
+Si no se mueve, pulsa **Concentración · 1.1 mascotas · Ver estado** en ese mismo menú:
 el gato explica si no puede leer la barra de direcciones,
 no encuentra la X o el navegador no está en primer plano. Ese mensaje es local.
 Un borrador en el cuadro del gato ya no suspende este modo mientras usas el navegador;

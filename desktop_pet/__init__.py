@@ -1,4 +1,4 @@
-"""Asistente Virtual 1.0."""
+"""Asistente Virtual 1.1: selectable desktop companions."""
 
-__version__ = '1.0.0'
-RELEASE_LABEL = '1.0 final'
+__version__ = '1.1.0'
+RELEASE_LABEL = '1.1 mascotas'
