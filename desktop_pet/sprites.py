@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QPainter, QPixmap, QTransform
+from PyQt6.QtGui import QImage, QPainter, QPixmap, QTransform
 
 SPRITE_DIR = Path(__file__).resolve().parent.parent / "assets" / "siamese"
 SPRITE_STATES = ("idle", "talking", "falling", "walking", "petting", "sleeping")
@@ -99,9 +99,11 @@ class AtlasSpriteSet(SpriteSet):
         for index in range(12):
             cells[index] = atlas.copy(index % 4 * cell_w, index // 4 * cell_h, cell_w, cell_h)
             # Alpha bounds are computed only at load, never on animation ticks.
-            im = cells[index].toImage()
-            points = [(x, y) for y in range(cell_h) for x in range(cell_w)
-                      if im.pixelColor(x, y).alpha() > 128]
+            im = cells[index].toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+            # Read packed alpha bytes: avoid millions of Python -> Qt QColor calls.
+            alpha = im.constBits().asstring(im.sizeInBytes())[3::4]
+            points = [(offset % cell_w, offset // cell_w)
+                      for offset, value in enumerate(alpha) if value > 128]
             if not points:
                 raise ValueError('Falta una pose en el atlas de la mascota.')
             xs, ys = zip(*points)
