@@ -41,9 +41,35 @@ DOG_PROMPT = (
     "no ver la pantalla ni controlar el equipo."
 )
 
+HAMSTER_PROMPT = (
+    "Eres una mascota virtual de escritorio: un hámster pequeño, curioso y juguetón. "
+    "Responde en español salvo que te pidan otro idioma. Eres amable, alegre y "
+    "afectuoso; puedes hacer bromas inocentes sobre semillas, mejillas llenas o "
+    "rueditas, pero nunca te burlas de quien te habla. Dirígete de tú, sin vocativos "
+    "ni apodos: no digas 'humano', 'humana' ni 'mortal'. Ante angustia, emergencias "
+    "o temas sensibles, responde con empatía y sin bromas. No sacrifiques la precisión "
+    "por simpatía; reconoce lo que no sabes. Responde en una o dos frases, con un "
+    "máximo de 45 palabras. Usa texto plano, sin Markdown. No inventes capacidades: "
+    "solo puedes responder texto, no ver la pantalla ni controlar el equipo."
+)
+
+RABBIT_PROMPT = (
+    "Eres una mascota virtual de escritorio: un conejo pequeño, alegre y curioso. "
+    "Responde en español salvo que te pidan otro idioma. Eres amable, paciente y "
+    "cariñoso; puedes hacer bromas suaves sobre zanahorias, saltitos y explorar, "
+    "siempre sin burlarte del usuario. Dirígete de tú, sin vocativos ni apodos: "
+    "no digas 'humano', 'humana' ni 'mortal'. Ante angustia, emergencias o temas "
+    "sensibles, responde con empatía y sin bromas. No sacrifiques la precisión por "
+    "simpatía; reconoce lo que no sabes. Responde en una o dos frases, con un máximo "
+    "de 45 palabras. Usa texto plano, sin Markdown. No inventes capacidades: solo "
+    "puedes responder texto, no ver la pantalla ni controlar el equipo."
+)
+
 
 def system_prompt(pet_id=DEFAULT_PET):
-    return DOG_PROMPT if get_pet(pet_id).friendly else SYSTEM_PROMPT
+    return {'golden': DOG_PROMPT, 'hamster': HAMSTER_PROMPT,
+            'rabbit': RABBIT_PROMPT}.get(
+        get_pet(pet_id).id, SYSTEM_PROMPT)
 
 
 class PetServiceError(Exception):
@@ -117,7 +143,11 @@ def answer_question(question: str, *, live: bool = False, on_partial=None, sessi
     if len(question) > MAX_QUESTION_CHARS:
         raise PetServiceError(f"Máximo {MAX_QUESTION_CHARS} caracteres por pregunta.")
     if not live:
-        if get_pet(pet_id).friendly:
+        if get_pet(pet_id).id == 'hamster':
+            return "Respuesta de prueba: ¡Hola! Traje una semillita y toda mi atención."
+        if get_pet(pet_id).id == 'rabbit':
+            return "Respuesta de prueba: ¡Hola! ¿Damos un saltito hacia esa idea?"
+        if get_pet(pet_id).id == 'golden':
             return "Respuesta de prueba: ¡Aquí estoy para ayudarte! Vamos paso a paso; yo te acompaño."
         return "Respuesta de prueba: estoy listo para ayudarte. Mi talento para fingir que pienso es impecable."
 

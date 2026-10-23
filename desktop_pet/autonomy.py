@@ -68,10 +68,66 @@ DOG_QUIPS = (
     'Cuando termines, celebramos con una vuelta por el escritorio.',
 )
 
+HAMSTER_QUIPS = (
+    '¡Hola! ¿Hoy exploramos algo nuevo?',
+    'Estoy guardando energía… y quizá una semilla.',
+    'Cada tarea parece más fácil con una pausa pequeñita.',
+    'Si necesitas una idea, puedo pensarla mientras corro en mi ruedita imaginaria.',
+    'Tengo las mejillas listas. No sé para qué, pero listas.',
+    'Un paso pequeño también cuenta. Mira mis patitas.',
+    '¿Terminamos esto y celebramos con una semillita?',
+    'Me encanta curiosear. ¿Qué descubrimos hoy?',
+    'Esta pantalla es enorme cuando mides lo que yo.',
+    'Estoy aquí para ayudarte. Y para inspeccionar cada esquina.',
+    'Respira un poquito. Yo vigilo la tarea.',
+    'No es una siesta; es una pausa estratégicamente acogedora.',
+    'Tengo una idea. Primero debo acordarme dónde la guardé.',
+    '¡Ánimo! Vamos a avanzar a pasitos de hámster.',
+    '¿Ese cursor se mueve solo o también tiene ruedita?',
+    'El escritorio necesita más rincones interesantes.',
+    'Hoy mi plan es explorar, aprender y no perder mi semilla.',
+    'Si algo sale raro, lo examinamos con curiosidad.',
+    'Estoy practicando ser útil. La parte de la semilla ya la domino.',
+    'Una tarea, una pausa, otra tarea. Plan perfecto.',
+    '¡Qué emocionante! Bueno, tan emocionante como puede ser estar aquí.',
+    'Aquí sigo, con curiosidad y patitas preparadas.',
+    'Tal vez la solución esté en esa esquina. Voy a mirar.',
+    'No olvides estirarte un poquito. Yo haré una vuelta imaginaria.',
+)
+
+RABBIT_QUIPS = (
+    '¡Hola! ¿Qué vamos a descubrir hoy?',
+    'Un saltito a la vez y llegamos lejos.',
+    'Estoy aquí para acompañarte. Y vigilar las zanahorias imaginarias.',
+    '¿Hacemos una pausa para estirar las orejas?',
+    'Esta esquina tiene potencial para una madriguera acogedora.',
+    'Si la tarea parece grande, la partimos en saltitos pequeños.',
+    '¡Qué bien! Ya dimos el primer paso.',
+    'Estoy practicando saltos. Mi aterrizaje es más elegante que el tuyo.',
+    'Todo va mejor con curiosidad y una zanahoria de reserva.',
+    '¿Necesitas ayuda? Tengo las orejas bien atentas.',
+    'Una pausa breve y luego seguimos con energía.',
+    'Ese cursor corre rápido. Creo que quiere jugar.',
+    'Hoy podemos aprender algo nuevo, sin prisa.',
+    'No me dormí; estaba pensando con los ojos cerrados.',
+    'Tu escritorio necesita una pequeña exploración.',
+    '¿Y si probamos otra idea? Los conejos somos buenos dando giros.',
+    'Respira un poquito. Yo cuido que todo siga aquí.',
+    'La curiosidad también cuenta como progreso.',
+    '¡Listo para ayudarte! Mis orejas ya están en posición.',
+    'A veces basta con saltar por encima del primer obstáculo.',
+    'Estoy seguro de que podemos resolverlo juntos.',
+    'Me guardé una zanahoria para celebrar el final.',
+    'Un paso, otro paso… bueno, en mi caso, un salto.',
+    '¡Seguimos! Este escritorio todavía tiene rincones sin explorar.',
+)
+
 
 def passive_lines(pet_id='siamese'):
     from desktop_pet.pets import get_pet
-    return DOG_QUIPS if get_pet(pet_id).friendly else QUIPS
+    return {'golden': DOG_QUIPS, 'hamster': HAMSTER_QUIPS,
+            'rabbit': RABBIT_QUIPS}.get(
+        get_pet(pet_id).id, QUIPS)
 
 
 def mouse_button_down():
@@ -319,7 +375,7 @@ class CatAutonomy:
 
     def mouth_offset(self):
         w = self.window
-        dx, y = (62, 46) if w.pet.friendly else (65, 44)
+        dx, y = w.pet.mouth
         return w.character.pos() + QPoint(w.character.width() // 2 + w.facing * dx, y)
 
     def carry_interrupted(self, cursor=None):
