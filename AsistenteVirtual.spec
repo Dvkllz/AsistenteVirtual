@@ -10,6 +10,8 @@ datas = []
 # Public resource allowlist; only --private explicitly permits a staged key.
 patterns = ('assets/placeholder.png', 'assets/siamese/*.png',
             'assets/golden/atlas.png',
+            'assets/hamster/atlas.png',
+            'assets/rabbit/atlas.png',
             'assets/siamese/animation/*.png', 'assets/audio/*.mp3',
             'assets/fonts/*.ttf', 'assets/fonts/OFL.txt')
 for pattern in patterns:

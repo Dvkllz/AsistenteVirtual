@@ -1,6 +1,6 @@
-# Asistente Virtual · 1.1 mascotas
+# Asistente Virtual · 1.3 mascotas
 
-Versión 1.1.0: selector de gato siamés y golden retriever, menú y submenús verdes con fuente Pixelify Sans, voz,
+Versión 1.3.0: selector de gato siamés, golden retriever, hámster y conejo, menú y submenús verdes con fuente Pixelify Sans, voz,
 física, caricias, sonidos y asistente de concentración. El repositorio contiene
 solo código y recursos; las claves y los ejecutables privados no se publican.
 
@@ -8,7 +8,9 @@ solo código y recursos; las claves y los ejecutables privados no se publican.
 
 Clic derecho → **Cambiar mascota** → **Gato siamés · sarcástico** o
 **Golden retriever · amigable**. La elección se recuerda al reiniciar. El gato
-sigue siendo la opción predeterminada de una instalación nueva.
+sigue siendo la opción predeterminada de una instalación nueva. También puedes
+elegir **Hámster · curioso**, un compañero amable, juguetón y explorador, o
+**Conejo · alegre**, amable, paciente y con ganas de descubrir cada rincón.
 
 El golden tiene doce poses propias: quieto, hablando, acariciado, dormido,
 cuatro pasos y cuatro fases de salto/caída. Comparte física, arrastre/lanzamiento,
@@ -27,6 +29,13 @@ una intervención de concentración. Conserva los pasos y el efecto al cerrar;
 **no maúlla ni ronronea**. Sus caricias tienen animación visual sin sonido vocal.
 El ronroneo se deshabilita solo para el perro y se recupera la preferencia del gato
 al volver. No se han añadido grabaciones de ladridos.
+
+El hámster y el conejo tienen atlas propios con poses de reposo, diálogo, caricias,
+sueño, cuatro pasos y cuatro fases de salto. Comparten las opciones del menú, la
+física, el micrófono y el modo de concentración; cada cual usa sus propias
+respuestas y 24 mensajes pasivos locales. Conservan los efectos de pasos y cierre,
+sin maullidos ni ronroneo. Los atlas originales están en `assets/hamster/` y
+`assets/rabbit/`; se escalan en memoria.
 
 Los sprites y el prompt de generación están en `assets/golden/`; el atlas original
 se conserva y se procesa en memoria con Qt. `scripts/preview_pets.py` genera una
@@ -418,7 +427,7 @@ También cierra la última pestaña, por autorización del propietario: esto pue
 cerrar esa ventana del navegador, pero no otras ventanas. Puede perderse un
 borrador sin guardar: úsalo cuando no estés redactando contenido en esas páginas.
 
-Si no se mueve, pulsa **Concentración · 1.1 mascotas · Ver estado** en ese mismo menú:
+Si no se mueve, pulsa **Concentración · 1.3 mascotas · Ver estado** en ese mismo menú:
 el gato explica si no puede leer la barra de direcciones,
 no encuentra la X o el navegador no está en primer plano. Ese mensaje es local.
 Un borrador en el cuadro del gato ya no suspende este modo mientras usas el navegador;

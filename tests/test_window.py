@@ -110,7 +110,7 @@ class WindowTests(unittest.TestCase):
     def test_final_menu_and_submenu_have_green_background(self):
         from desktop_pet import __version__, RELEASE_LABEL
         window = self.make_window()
-        self.assertEqual(__version__, '1.1.0')
+        self.assertEqual(__version__, '1.3.0')
         self.assertIn(RELEASE_LABEL, window.windowTitle())
         for menu in (window.menu, window.response_menu):
             menu.ensurePolished()
