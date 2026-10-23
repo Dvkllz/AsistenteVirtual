@@ -87,7 +87,7 @@ class AtlasSpriteSet(SpriteSet):
     CELLS = {'idle': (0,), 'talking': (1,), 'petting': (2,), 'sleeping': (3,),
              'walking': (4, 5, 6, 7), 'falling': (8, 9, 10, 11)}
 
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, targets=((112, 100), (118, 57), (140, 82), (140, 100))):
         atlas = QPixmap(str(directory / 'atlas.png'))
         self.frames = {}
         self.missing = []
@@ -110,7 +110,6 @@ class AtlasSpriteSet(SpriteSet):
             bounds[index] = QRect(min(xs), min(ys), max(xs)-min(xs)+1, max(ys)-min(ys)+1)
         # A single scale per animation prevents walking/sitting from pulsing.
         groups = ((0, 1, 2), (3,), (4, 5, 6, 7), (8, 9, 10, 11))
-        targets = ((112, 100), (118, 57), (140, 82), (140, 100))
         scales = {}
         for indices, (width, height) in zip(groups, targets):
             scale = min(width / max(bounds[i].width() for i in indices),
@@ -134,4 +133,5 @@ class AtlasSpriteSet(SpriteSet):
 def load_pet_sprites(pet_id='siamese'):
     from desktop_pet.pets import get_pet
     profile = get_pet(pet_id)
-    return AtlasSpriteSet(profile.directory) if profile.id == 'golden' else SpriteSet(profile.directory)
+    return (AtlasSpriteSet(profile.directory, profile.atlas_targets)
+            if profile.atlas else SpriteSet(profile.directory))
