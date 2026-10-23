@@ -60,10 +60,11 @@ class CatSounds(QObject):
             self._play(self.last_meow)
 
     def set_pet(self, pet_id):
-        """Shared footsteps/close effects remain; feline vocals never play for a dog."""
+        """Keep shared effects for every pet and feline vocals for cats only."""
+        from desktop_pet.pets import get_pet
         self.stop_speech()
         self.set_walking(False)
-        self.feline = pet_id != 'golden'
+        self.feline = get_pet(pet_id).species == 'gato'
 
     def stop_speech(self, *, completed=False):
         self.speaking = False

@@ -291,9 +291,13 @@ class Concentration:
             self.cooldown = time.monotonic() + 20
             self._status('closed' if completed else 'cancelled')
             if completed:
-                self.window.show_response(
-                    '¡Listo! Quité esa distracción. Vamos con lo que querías hacer.'
-                    if self.window.pet.friendly else 'Te ahorré cuarenta minutos. De nada.')
+                messages = {
+                    'golden': '¡Listo! Quité esa distracción. Vamos con lo que querías hacer.',
+                    'hamster': '¡Listo! Cerré esa pestaña. Ahora podemos seguir explorando.',
+                    'rabbit': '¡Listo! Cerré la pestaña. ¡Un saltito más cerca de concentrarnos!',
+                    'siamese': 'Te ahorré cuarenta minutos. De nada.',
+                }
+                self.window.show_response(messages[self.window.pet.id])
             return
         target = result.get('target')
         point = target_point(target, QApplication.screens()) if isinstance(target, dict) else None
@@ -327,9 +331,8 @@ class Concentration:
         self.started = time.monotonic()
         self.origin = w.character.mapToGlobal(QPoint(w.character.width()//2-76, 0))
         self.direction = 1 if point.x() >= self.origin.x()+76 else -1
-        contact = paw_offset(self.direction)
-        if w.pet.friendly:
-            contact = QPoint(130 if self.direction > 0 else 22, 52)
+        paw_x, paw_y = w.pet.paw
+        contact = QPoint(paw_x if self.direction > 0 else 152-paw_x, paw_y)
         self.destination = point - contact
         # Allow the ears above the monitor edge: clamping the whole rectangle
         # kept the paw below the X on maximized browsers.
