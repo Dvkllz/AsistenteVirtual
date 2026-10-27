@@ -68,6 +68,22 @@ class PetSwitchingTests(unittest.TestCase):
         w.set_pet('golden')
         self.assertIs(w.sprites, golden)
 
+    def test_language_switch_updates_ui_and_persists(self):
+        w = self.make_window()
+        w.set_language('en')
+        self.assertEqual(w.language, 'en')
+        self.assertEqual(w.input.placeholderText(), 'Type here…')
+        self.assertEqual(w.response_menu.title(), 'Response mode: local demo')
+        self.assertEqual(w.pet_actions['rabbit'].text(), 'Rabbit · cheerful')
+        self.assertEqual(w.close_action.text(), 'Close pet')
+        self.assertTrue(w.english_action.isChecked())
+        w.concentration._status('ready')
+        self.assertIn('open Instagram or TikTok', w.concentration_status_action.toolTip())
+        self.assertEqual(self.make_window().language, 'en')
+        w.set_language('es')
+        self.assertEqual(w.input.placeholderText(), 'Escribe aquí…')
+        self.assertEqual(w.close_action.text(), 'Cerrar mascota')
+
     def test_request_uses_selected_pet_and_selector_is_locked_until_finished(self):
         gate = threading.Event()
         calls = []

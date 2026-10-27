@@ -22,6 +22,7 @@ from desktop_pet.concentration import Concentration, FOCUS_VERSION
 from desktop_pet import RELEASE_LABEL
 from desktop_pet.voice import Microphone, transcribe_audio
 from desktop_pet.chat_style import DialogueFrame, pixel_font_family, pixel_icon
+from desktop_pet.i18n import PET_LABELS, tr
 
 ASSET_PATH = SPRITE_DIR / "idle.png"
 
@@ -61,6 +62,10 @@ class PetWindow(QWidget):
         self.live = live
         self._custom_responder = responder
         self.settings = settings or QSettings()
+        self.language = self.settings.value('language/selected', 'es')
+        if self.language not in ('es', 'en'):
+            self.language = 'es'
+        self._status_source = ''
         self.pet = get_pet(self.settings.value('pet/selected', 'siamese'))
         self.worker: AnswerThread | None = None
         self.voice_worker: AnswerThread | None = None
@@ -301,6 +306,16 @@ class PetWindow(QWidget):
             self.pet_group.addAction(action)
             self.pet_menu.addAction(action)
             self.pet_actions[pet_id] = action
+        self.language_menu = self.menu.addMenu('Idioma / Language')
+        self.language_group = QActionGroup(self)
+        self.language_group.setExclusive(True)
+        self.spanish_action = QAction('Español', self, checkable=True)
+        self.english_action = QAction('English', self, checkable=True)
+        for action, language in ((self.spanish_action, 'es'), (self.english_action, 'en')):
+            self.language_group.addAction(action)
+            self.language_menu.addAction(action)
+            action.triggered.connect(lambda checked, choice=language:
+                                     checked and self.set_language(choice))
         self.concentration_action = QAction('Asistente de concentración', self, checkable=True)
         self.concentration_action.setToolTip(
             'Cierra la pestaña activa de Instagram/TikTok en Chrome o Edge. '
@@ -369,25 +384,95 @@ class PetWindow(QWidget):
         self.concentration = Concentration(self)
         self.concentration_action.toggled.connect(self.concentration.set_enabled)
         self._apply_pet_labels()
+        self._apply_language()
         QTimer.singleShot(0, self._start_motion)
+
+    def tr(self, text: str) -> str:
+        return tr(text, self.language)
+
+    def set_language(self, language: str) -> None:
+        if language not in ('es', 'en'):
+            return
+        if self.worker is not None or self.voice_busy:
+            return
+        self.language = language
+        self.settings.setValue('language/selected', language)
+        self.settings.sync()
+        self._apply_language()
+
+    def _apply_language(self) -> None:
+        """Refresh visible controls without changing the current pet or task."""
+        lang = self.language
+        self.spanish_action.setChecked(lang == 'es')
+        self.english_action.setChecked(lang == 'en')
+        self.demo_action.setText(self.tr('Modo de prueba · sin consumo'))
+        self.live_action.setText(self.tr('Usar OpenAI · consume tokens'))
+        self.language_menu.setTitle('Idioma / Language')
+        self.response_menu.setTitle(self.tr('Modo de respuesta') + ': ' +
+                                     ('OpenAI' if self.live else self.tr('prueba local')))
+        self.pet_menu.setTitle(self.tr('Cambiar mascota'))
+        self.pet_menu.setToolTip(self.tr(
+            'La selección se recuerda. Espera a terminar la pregunta o el dictado para cambiar.'))
+        for pet_id, action in self.pet_actions.items():
+            action.setText(PET_LABELS[pet_id] if lang == 'en' else PETS[pet_id].label)
+        self.concentration_action.setText(self.tr('Asistente de concentración'))
+        self.concentration_action.setToolTip(self.tr(
+            'Cierra la pestaña activa de Instagram/TikTok en Chrome o Edge. Puede perder borradores. También cierra la última pestaña y su ventana. Esc cancela.'))
+        self.physics_action.setText(self.tr('Física activada'))
+        self.jump_action.setText(self.tr('Dar un salto'))
+        self.walk_action.setText(self.tr('Pasear'))
+        self.autonomy_action.setText(self.tr('Travesuras automáticas'))
+        self.cursor_carry_action.setText(self.tr('Llevarse el cursor (3 segundos)'))
+        self.cursor_push_action.setText(self.tr('Empujar cursor al dar zarpazo' if self.pet.species == 'gato'
+                                                else 'Empujar cursor con la patita'))
+        self.purr_action.setText(self.tr('Ronroneo al acariciar' if self.pet.species == 'gato'
+                                         else 'Ronroneo (solo gato)'))
+        self.purr_action.setToolTip(self.tr('El efecto vocal solo está disponible para el gato.'))
+        self.reset_position_action.setText(self.tr('Volver a la esquina'))
+        self.close_action.setText(self.tr('Cerrar mascota'))
+        self.input.setPlaceholderText(self.tr('Escribe aquí…'))
+        self.bubble.setAccessibleName(self.tr('Respuesta de la mascota'))
+        self.input.setAccessibleName(self.tr('Pregunta; Enter para enviar'))
+        self.mic_button.setAccessibleName(self.tr('Detener y transcribir' if self.microphone.recording
+                                                  else 'Grabar pregunta por voz'))
+        self.mic_button.setToolTip(self.tr(
+            'Grabar hasta 15 s; al terminar se transcribe y responde automáticamente.\nAudio y respuesta consumen créditos. Escape cancela antes de enviar.'))
+        self.send_button.setAccessibleName(self.tr('Enviar pregunta'))
+        self.send_button.setToolTip(self.tr(
+            'Enviar pregunta · Enter (en modo OpenAI consume créditos)'))
+        self.mode.setAccessibleName(self.tr('Estado temporal'))
+        self.setWindowTitle(self.tr('Mascota virtual') + ' · ' + RELEASE_LABEL + ' · ' +
+                            ('OpenAI' if self.live else self.tr('Prueba local'))
+                            if lang == 'en' else
+                            'Mascota virtual · ' + RELEASE_LABEL + ' · ' +
+                            ('OpenAI' if self.live else 'Prueba local'))
+        self._apply_pet_labels()
+        if self._status_source and self.mode.isVisible():
+            self.mode.setText(self.tr(self._status_source))
+        if self.concentration:
+            self.concentration._status(self.concentration.reason)
 
     def _apply_pet_labels(self):
         feline = self.pet.species == 'gato'
         animal = self.pet.species
         self.sounds.set_pet(self.pet.id)
-        self.sounds_action.setText('Sonidos del ' + animal)
-        self.sounds_action.setToolTip('Maullidos, pasos y efecto al cerrar.' if feline else
-                                      'Pasos y efecto al cerrar; sin sonidos vocales.')
+        self.sounds_action.setText(('Sounds · ' + {'gato': 'cat', 'perro': 'dog',
+                                                     'hámster': 'hamster', 'conejo': 'rabbit'}.get(animal, animal))
+                                   if self.language == 'en' else 'Sonidos del ' + animal)
+        self.sounds_action.setToolTip(self.tr('Maullidos, pasos y efecto al cerrar.' if feline else
+                                              'Pasos y efecto al cerrar; sin sonidos vocales.'))
         self.purr.set_enabled(feline and self.settings.value('sound/purr', True, type=bool))
         self.purr_action.blockSignals(True)
         self.purr_action.setChecked(self.purr.enabled)
         self.purr_action.blockSignals(False)
         self.purr_action.setEnabled(feline)
-        self.purr_action.setText('Ronroneo al acariciar' if feline else 'Ronroneo (solo gato)')
-        self.purr_action.setToolTip('El efecto vocal solo está disponible para el gato.')
-        self.cursor_push_action.setText('Empujar cursor al dar zarpazo' if feline
-                                        else 'Empujar cursor con la patita')
-        self.character.setAccessibleName(self.pet.label + '; arrastra para lanzar; pasa el ratón sobre la cabeza para acariciar')
+        self.purr_action.setText(self.tr('Ronroneo al acariciar' if feline else 'Ronroneo (solo gato)'))
+        self.purr_action.setToolTip(self.tr('El efecto vocal solo está disponible para el gato.'))
+        self.cursor_push_action.setText(self.tr('Empujar cursor al dar zarpazo' if feline
+                                                else 'Empujar cursor con la patita'))
+        self.character.setAccessibleName((PET_LABELS[self.pet.id] if self.language == 'en' else self.pet.label)
+                                         + '; ' + self.tr('Mascota; arrastra para lanzar; pasa el ratón sobre la cabeza para acariciar').split('; ', 1)[1])
+        self.character.setToolTip(self.tr('Arrastra y suelta: lanzar · Ratón de lado a lado sobre la cabeza, sin clic: caricias'))
 
     def set_pet(self, pet_id: str) -> bool:
         """Swap only at an interaction boundary; never mix an in-flight answer's persona."""
@@ -517,7 +602,8 @@ class PetWindow(QWidget):
         self.mode.hide()
 
     def _show_status(self, text):
-        self.mode.setText(text)
+        self._status_source = text
+        self.mode.setText(self.tr(text))
         self.mode.show()
         self.mode.raise_()
 
@@ -537,6 +623,7 @@ class PetWindow(QWidget):
         self.demo_action.setEnabled(not busy)
         self.live_action.setEnabled(not busy)
         self.pet_menu.setEnabled(not busy)
+        self.language_menu.setEnabled(not busy)
         self.mic_button.setEnabled(self.worker is None and self.voice_worker is None)
         self._sync_send_button()
 
@@ -544,7 +631,7 @@ class PetWindow(QWidget):
         if self._closing:
             return
         self.mic_button.setChecked(recording)
-        self.mic_button.setAccessibleName("Detener y transcribir" if recording else "Grabar pregunta por voz")
+        self.mic_button.setAccessibleName(self.tr("Detener y transcribir" if recording else "Grabar pregunta por voz"))
         if recording:
             self._show_status("GRABANDO · máx. 15 s · Esc cancela")
         else:
@@ -803,8 +890,10 @@ class PetWindow(QWidget):
         self.live = live
         self.demo_action.setChecked(not live)
         self.live_action.setChecked(live)
-        self.setWindowTitle('Mascota virtual · ' + RELEASE_LABEL + ' · ' + ('OpenAI' if live else 'Prueba local'))
-        self.response_menu.setTitle("Modo: " + ("OpenAI" if live else "prueba local"))
+        self.setWindowTitle(self.tr('Mascota virtual') + ' · ' + RELEASE_LABEL + ' · ' +
+                            ('OpenAI' if live else self.tr('Prueba local')))
+        self.response_menu.setTitle(self.tr('Modo de respuesta') + ': ' +
+                                     ('OpenAI' if live else self.tr('prueba local')))
         self._restore_mode_label()
         if not announce:
             return
@@ -921,9 +1010,11 @@ class PetWindow(QWidget):
         self.mic_button.setEnabled(False)
         self._partial_answer_received = False
         pet_id = self.pet.id
+        language = self.language
         responder = self._custom_responder or (
             lambda value, partial: answer_question(
-                value, live=self.live, on_partial=partial, session=self.api_session, pet_id=pet_id))
+                value, live=self.live, on_partial=partial, session=self.api_session, pet_id=pet_id,
+                **({'language': language} if language != 'es' else {})))
         self.worker = AnswerThread(question, responder, self, streaming=self._custom_responder is None)
         self.worker.partial.connect(self._on_partial_answer)
         self.worker.answered.connect(self._on_answer)
@@ -933,6 +1024,7 @@ class PetWindow(QWidget):
         self.demo_action.setEnabled(False)
         self.live_action.setEnabled(False)
         self.pet_menu.setEnabled(False)
+        self.language_menu.setEnabled(False)
 
     @pyqtSlot(str)
     def show_response(self, text: str) -> None:
@@ -950,7 +1042,7 @@ class PetWindow(QWidget):
         if not (self.motion_timer.isActive()
                 and (self.y() < self._bounds()[3] - 1 or abs(self.body.vy) > 100)):
             self._stop_motion()
-        self.bubble.setText(text)
+        self.bubble.setText(self.tr(text))
         self._restore_mode_label()
         self.scroll.verticalScrollBar().setValue(0)
         self._dialog_active = True

@@ -47,6 +47,13 @@ encima de otras ventanas. Haz clic y arrastra para moverlo; la posición se
 recuerda para el siguiente inicio. El menú de clic derecho permite volver a la
 esquina, cambiar de modo y cerrar la mascota.
 
+## Idioma
+
+El menú de clic derecho → **Idioma / Language** permite elegir **Español** o
+**English**. La preferencia se recuerda al reiniciar; también cambia los menús,
+los avisos, los mensajes pasivos, las respuestas de prueba y el idioma solicitado
+a OpenAI. Las respuestas respetan el idioma seleccionado al enviar la pregunta.
+
 ## Movimiento y tamaño
 
 El gato es un 20 % más pequeño: pasa de 140 a 112 píxeles lógicos de alto.

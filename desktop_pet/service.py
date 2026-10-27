@@ -66,10 +66,13 @@ RABBIT_PROMPT = (
 )
 
 
-def system_prompt(pet_id=DEFAULT_PET):
-    return {'golden': DOG_PROMPT, 'hamster': HAMSTER_PROMPT,
-            'rabbit': RABBIT_PROMPT}.get(
-        get_pet(pet_id).id, SYSTEM_PROMPT)
+def system_prompt(pet_id=DEFAULT_PET, language='es'):
+    prompt = {'golden': DOG_PROMPT, 'hamster': HAMSTER_PROMPT,
+              'rabbit': RABBIT_PROMPT}.get(get_pet(pet_id).id, SYSTEM_PROMPT)
+    if language == 'en':
+        return prompt.replace('Responde en español salvo que te pidan otro idioma.',
+                              'Respond in English unless asked for another language.')
+    return prompt
 
 
 class PetServiceError(Exception):
@@ -136,13 +139,20 @@ def _stream_response(client, parameters, on_partial):
 
 
 def answer_question(question: str, *, live: bool = False, on_partial=None, session=None,
-                    pet_id=DEFAULT_PET) -> str:
+                    pet_id=DEFAULT_PET, language='es') -> str:
     question = question.strip()
     if not question:
         raise PetServiceError("Primero escribe algo. Aún no leo mentes.")
     if len(question) > MAX_QUESTION_CHARS:
         raise PetServiceError(f"Máximo {MAX_QUESTION_CHARS} caracteres por pregunta.")
     if not live:
+        if language == 'en':
+            return {
+                'hamster': 'Demo reply: Hello! I brought a little seed and all my attention.',
+                'rabbit': 'Demo reply: Hello! Shall we hop toward that idea?',
+                'golden': "Demo reply: I'm here to help! One step at a time; I'll keep you company.",
+                'siamese': "Demo reply: I'm ready to help. Pretending to think is one of my many talents.",
+            }[get_pet(pet_id).id]
         if get_pet(pet_id).id == 'hamster':
             return "Respuesta de prueba: ¡Hola! Traje una semillita y toda mi atención."
         if get_pet(pet_id).id == 'rabbit':

@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QApplication, QLabel
 
 from desktop_pet.autonomy import escape_pressed, mouse_button_down
 from desktop_pet import RELEASE_LABEL
+from desktop_pet.i18n import focus_reason
 
 FOCUS_VERSION = 'Concentración · ' + RELEASE_LABEL
 WALK_SECONDS = 1.5
@@ -248,13 +249,16 @@ class Concentration:
             label = ('Desactivado' if self.reason == 'off' else
                      'Detectando' if self.reason in ('starting', 'ready', 'allowed_site') else
                      'Página detectada' if self.reason == 'detected' else 'Ver estado')
-            action.setText(FOCUS_VERSION + ' · ' + label)
-            action.setToolTip(REASONS[self.reason])
+            action.setText(self.window.tr('Concentración') + ' · ' + RELEASE_LABEL
+                           + ' · ' + self.window.tr(label))
+            action.setToolTip(focus_reason(self.reason, REASONS[self.reason], self.window.language))
 
     def explain(self):
         # A local message, never an API request. Opening the menu must not erase
         # the last detector result before the user can read it.
-        self.window.show_response(FOCUS_VERSION + ': ' + REASONS[self.reason])
+        self.window.show_response(self.window.tr('Concentración') + ' · ' + RELEASE_LABEL
+                                  + ': ' + focus_reason(self.reason, REASONS[self.reason],
+                                                        self.window.language))
 
     def _blocked(self):
         w = self.window

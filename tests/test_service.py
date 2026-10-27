@@ -9,7 +9,7 @@ import httpx
 import openai
 
 from desktop_pet.service import (
-    DEFAULT_MODEL, MAX_OUTPUT_TOKENS, PetServiceError, answer_question,
+    DEFAULT_MODEL, MAX_OUTPUT_TOKENS, PetServiceError, answer_question, system_prompt,
 )
 
 
@@ -30,6 +30,12 @@ class ServiceTests(unittest.TestCase):
         with patch('desktop_pet.service.openai.OpenAI') as client:
             self.assertIn('prueba', answer_question('Hola'))
             client.assert_not_called()
+
+    def test_english_language_localizes_demo_and_api_instructions(self):
+        self.assertIn('Demo reply', answer_question('Hi', language='en'))
+        self.assertIn('Respond in English', system_prompt(language='en'))
+        self.assertNotIn('Responde en español', system_prompt(language='en'))
+        self.assertIn('Responde en español', system_prompt(language='es'))
 
     def test_blank_or_oversized_question_does_not_call_api(self):
         with patch('desktop_pet.service.openai.OpenAI') as client:

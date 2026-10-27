@@ -122,9 +122,57 @@ RABBIT_QUIPS = (
     '¡Seguimos! Este escritorio todavía tiene rincones sin explorar.',
 )
 
+ENGLISH_QUIPS = (
+    "You work; I supervise from this corner.",
+    "That mouse has been still for ten seconds. Suspicious.",
+    "I've optimized your desktop: it now has a cat.",
+    "My next meeting is with a nap.",
+    "Not a bug. A feline feature.",
+    "Your productivity could use more tuna.",
+    "I'm supervising. It looks a lot like doing nothing.",
+    "So many tabs, not one can of tuna.",
+    "I don't judge. Well, I do, but quietly. Mostly.",
+    "My world-domination plan starts after my nap.",
+    "I've reviewed your schedule: it needs more pets.",
+    "If this were a meeting, I'd already be asleep.",
+)
+DOG_QUIPS_EN = (
+    "I'm here! One task at a time; we're doing great.",
+    "If you need company, my schedule is wide open.",
+    "Today could be a good day to take that first step.",
+    "A little water break, then we keep going. I'll watch the desktop.",
+    "Great team! You bring the ideas; I'll wag my tail.",
+    "Small steps count. Mine happen to have four paws.",
+    "Take a breath. We can go at your pace.",
+    "I'm proud of you for keeping at it.",
+)
+HAMSTER_QUIPS_EN = (
+    "Hi! Shall we explore something new today?",
+    "Saving energy… and maybe a seed.",
+    "Every task feels easier with a tiny break.",
+    "I can think of an idea while I run on my imaginary wheel.",
+    "My cheeks are ready. Not sure for what, but ready.",
+    "One tiny step still counts. Look at my paws.",
+    "Let's finish this and celebrate with a little seed.",
+    "I'm here to help—and inspect every corner.",
+)
+RABBIT_QUIPS_EN = (
+    "Hello! What shall we discover today?",
+    "One little hop at a time, and we'll get there.",
+    "I'm here to keep you company—and guard the imaginary carrots.",
+    "Shall we stretch our ears for a moment?",
+    "If the task feels big, let's split it into little hops.",
+    "Great, we've already taken the first step!",
+    "Everything is better with curiosity and a spare carrot.",
+    "Need help? My ears are all perked up.",
+)
 
-def passive_lines(pet_id='siamese'):
+
+def passive_lines(pet_id='siamese', language='es'):
     from desktop_pet.pets import get_pet
+    if language == 'en':
+        return {'golden': DOG_QUIPS_EN, 'hamster': HAMSTER_QUIPS_EN,
+                'rabbit': RABBIT_QUIPS_EN}.get(get_pet(pet_id).id, ENGLISH_QUIPS)
     return {'golden': DOG_QUIPS, 'hamster': HAMSTER_QUIPS,
             'rabbit': RABBIT_QUIPS}.get(
         get_pet(pet_id).id, QUIPS)
@@ -290,7 +338,7 @@ class CatAutonomy:
         if (now >= self.next_quip and now - w._last_response_at >= 20
                 and not w.talking_timer.isActive()):
             self.next_quip = now + self.rng.uniform(45, 90)
-            choices = [quip for quip in passive_lines(w.pet.id) if quip != self.last_quip]
+            choices = [quip for quip in passive_lines(w.pet.id, w.language) if quip != self.last_quip]
             self.last_quip = self.rng.choice(choices)
             w._on_answer(self.last_quip)
 
